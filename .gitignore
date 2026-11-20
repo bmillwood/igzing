@@ -1,0 +1,7 @@
+/.cache/
+result
+result-*
+elm-stuff/
+__pycache__/
+/_build/
+/frontend/elm.js

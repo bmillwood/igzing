@@ -1,22 +1,114 @@
-Below is the prompt I used to ask Opus 5.5 to write this game. (I didn't do so
-by delivering this repo to it; I added this commit after the fact, honestly
-mostly just to make it more convenient to review in the GitHub PR interface.)
+# Sounding
 
-# Phoneme game
+Guess the word by its sounds: a phonemic Wordle, starting with British
+English. It works offline once loaded, so you can play it on the Underground.
+Inspired by [Heardle](https://joshuamandel.com/heardle/), which does this for
+American English with CMUdict.
 
-Joshua Mandel’s Heardle is a version of Wordle using phonemes instead of letters. It's good! But I would like it to:
+- Choose between the **daily** puzzle and **random** games at any time; each
+  keeps its own progress.
+- **Type an ordinary word** to fill a row with its pronunciation, or use the
+  phoneme keyboard. Each key shows an example word with the sound in bold.
+- **Spellings** appear under each guess, and **suggestions** as you type,
+  whether you're typing letters or sounds. Each can be turned off in settings.
+- **4, 5 or 6 sounds** per word.
 
-* Be extensible with accents, starting with BrE (default)
-* Let me switch from the daily game to random games at any time
-* In the same way that the app currently lets you type a word and see its phonemes, optionally show me the spellings of words I've guessed
-* perhaps also show me possible completions as I type, regardless of whether I'm typing spellings or phonemes, with each completion showing its spellings or pronunciations as appropriate
+## Layout
 
-I would like the UI to be in Elm and as offline as possible — ideally I can play this on the tube when I don't have signal.
+- `pipeline/sounding_data/`: the data pipeline (Python).
+- `data/sources/`: the pipeline's fetched, normalised sources. These are
+  committed.
+- `frontend/`: the game (Elm), plus a small JS service worker for offline play.
+- `default.nix`: `nix-build -A site` builds everything, data included, into a
+  static site. `nix-build -A data` builds just the data.
 
-Obviously there's a data processing pipeline that decides on the pronunciation dictionaries and has a build process separate from the UI / frontend. You can write that in whatever language you like. My understanding is that there is a Pareto frontier of quality vs coverage, so a solution that can layer different sources on top of each other with different priorities would be nice.
+## The data pipeline
 
-Provide a Nix package for the frontend. Maybe the data pipeline can be run from GitHub Actions, though it should be easy to run locally as well.
+It has two stages, so that the slow, networked, upstream-dependent part is
+separate from the part that decides what the game contains:
 
-You'll also need to come up with a name. Go for a placeholder, or something relatively sober and descriptive that nevertheless isn't already the name of some other popular thing.
+1. **`fetch`** downloads each upstream source and extracts what we need into
+   `data/sources/*.tsv`, as `word<TAB>transcription` in the source's own
+   notation. Committing these means a source update arrives as a diff you can
+   review. The `fetch` workflow does this monthly and opens a PR.
 
-Use this page to describe your progress and any decisions that seem significant enough to want review. Good luck!
+   ```sh
+   nix-shell --run 'PYTHONPATH=pipeline python -m sounding_data fetch'
+   ```
+
+   Downloads are cached in `.cache/`. Wiktionary's is 530 MB, so pass
+   `--refresh` only when you mean it.
+
+2. **`build`** turns those into one JSON file per accent. It needs no network
+   and is deterministic for a given nixpkgs, which is why the Nix build can run
+   it.
+
+   ```sh
+   nix-shell --run 'PYTHONPATH=pipeline python -m sounding_data build --out _build/data'
+   ```
+
+   It prints how many words each layer contributed, and the transcriptions it
+   rejected and why. That report is the first place to look when tuning.
+
+### Layers
+
+Each accent has a stack of pronunciation sources, best first (`build.py`). A
+word takes its pronunciations from the **first layer that has any usable
+pronunciation for it**, so a big, noisy source widens what counts as a valid
+guess without overruling a careful one. For `en-GB`:
+
+| Layer | Words | Notes |
+| --- | --- | --- |
+| [Britfone](https://github.com/JoseLlarena/Britfone) | 15k | Hand-checked SSBE. MIT. |
+| Wiktionary, tagged RP/UK | +28k | Via [kaikki.org](https://kaikki.org). Skips Lindsey-style "British Southern Standard" notation and regional tags. |
+| Wiktionary, untagged | +35k | Only for words with no tagged transcription. Rejects anything with a coda /r/. |
+| espeak-ng `en-gb-x-rp` | +27k | Letter-to-sound rules, run at build time for common words the others lack. |
+
+Every source has its own **symbol table** mapping its notation onto the
+accent's 44 phonemes. An unmapped symbol rejects the transcription rather than
+being skipped, so new notation gets counted instead of silently changing
+phoneme counts.
+
+### Answers
+
+Answers are stricter than valid guesses. A word qualifies if:
+
+- its pronunciation comes from a curated layer (Britfone or tagged
+  Wiktionary);
+- it's common (wordfreq Zipf ≥ 3);
+- it's a Wiktionary headword in its own right, not only a plural, past tense,
+  abbreviation or proper noun;
+- every non-generated layer that knows the word agrees on the pronunciation;
+- no word with that pronunciation has a sense tagged vulgar, offensive,
+  derogatory or similar.
+
+### Adding an accent
+
+1. Add an `Accent` (phonemes, labels, example words, keyboard) to
+   `accents.py`.
+2. Add an `AccentTags` to `sources/wiktionary.py` if Wiktionary should
+   contribute.
+3. Add an `AccentBuild` with its layers to `build.py`.
+
+General American, for instance, could use CMUdict, the US-tagged Wiktionary
+layers, and espeak's `en-us`. The frontend reads the accent list from the
+data, so it needs no changes.
+
+## Developing the frontend
+
+```sh
+nix-shell
+cd frontend
+elm make src/Main.elm --output=elm.js
+./assemble.sh elm.js ../_build/data ../_build/site
+python -m http.server -d ../_build/site
+elm-test
+```
+
+After changing Elm dependencies, regenerate the Nix lock files:
+`elm2nix convert > elm-srcs.nix && elm2nix snapshot`.
+
+## Licences
+
+The game's word data derives from Wiktionary (CC BY-SA 4.0) and wordfreq's
+lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0.
