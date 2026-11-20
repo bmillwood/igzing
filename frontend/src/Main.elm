@@ -985,7 +985,7 @@ viewHelpers model dict =
     Html.div [ A.class "helpers" ]
         [ Html.div [ A.class "suggestions" ] (lookup ++ suggestions)
         , Html.div [ A.class "entry" ]
-            [ Html.button [ A.class "key wide", E.onClick PressedBackspace, A.title "Delete" ] [ Html.text "⌫" ]
+            [ Html.button [ A.class "key wide", E.onClick PressedBackspace, A.title "Delete", keepFocus ] [ Html.text "⌫" ]
             , Html.input
                 [ A.id "spelling"
                 , A.type_ "text"
@@ -1010,9 +1010,18 @@ viewHelpers model dict =
                     )
                 ]
                 []
-            , Html.button [ A.class "key wide enter", E.onClick PressedEnter ] [ Html.text "Enter" ]
+            , Html.button [ A.class "key wide enter", E.onClick PressedEnter, keepFocus ] [ Html.text "Enter" ]
             ]
         ]
+
+
+{-| Stop on-screen keys taking focus when clicked, so that a physical Enter
+afterwards submits the guess rather than pressing the same key again, and so
+that the spelling box keeps focus while you use them.
+-}
+keepFocus : Html.Attribute Msg
+keepFocus =
+    E.preventDefaultOn "mousedown" (D.succeed ( NoOp, True ))
 
 
 viewKeyboard : Model -> Dictionary -> Game -> Html Msg
@@ -1040,6 +1049,7 @@ viewKeyboard model dict game =
             Html.button
                 [ A.class ("key" ++ markClasses)
                 , E.onClick (PressedPhoneme id)
+                , keepFocus
                 , A.title (before ++ highlighted ++ after)
                 ]
                 [ Html.span [ A.class "label" ] [ Html.text (Dictionary.label dict id) ]
