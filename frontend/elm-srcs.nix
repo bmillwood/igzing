@@ -54,4 +54,9 @@
         sha256 = "17lw4iz7wli3ad4kkm32qm0bl1m1kqzwa4xivmb4sxi1ynwnla5r";
         version = "1.0.6";
       };
+
+      "elm-explorations/test" = {
+        sha256 = "15ayrylxancgjbdnmb0x7297vx86mn7206mdzihbf1yr4g6hlq3i";
+        version = "2.2.1";
+      };
 }
