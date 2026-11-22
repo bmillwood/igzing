@@ -5,6 +5,9 @@ English. It works offline once loaded, so you can play it on the Underground.
 Inspired by [Heardle](https://joshuamandel.com/heardle/), which does this for
 American English with CMUdict.
 
+The name, /ɪgzɪŋ/, is one of the most English-sounding five-phoneme non-words
+we could find, according to a trigram model of the game's own dictionary.
+
 - Choose between the **daily** puzzle and **random** games at any time; each
   keeps its own progress.
 - **Type an ordinary word** to fill a row with its pronunciation, or use the
