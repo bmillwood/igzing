@@ -13,11 +13,15 @@ import itertools
 import re
 import unicodedata
 
-# Marks that carry no segmental information for our purposes. Stress and
-# syllable boundaries are dropped; the tie bar is dropped so that t͡ʃ and tʃ
-# look the same to the symbol table; the non-syllabic mark is redundant in a
-# phonemic transcription of diphthongs.
-IGNORED = frozenset("ˈˌ.‿͡ ̯")
+# Marks that carry no segmental information for our purposes. The tie bar is
+# dropped so that t͡ʃ and tʃ look the same to the symbol table; the
+# non-syllabic mark is redundant in a phonemic transcription of diphthongs.
+IGNORED = frozenset("̯͡")
+
+# Stress marks and syllable and word boundaries. No phoneme spans one, so they
+# split a transcription into pieces tokenised separately: courtship
+# /ˈkɔːt.ʃɪp/ has t then ʃ, not tʃ.
+BOUNDARY = re.compile("[ˈˌ.‿ ]")
 
 # Superscript and parenthesised linking/intrusive r, as in Wiktionary's
 # /ˈfɑːðə(ɹ)/: never part of the citation form in a non-rhotic accent.
@@ -66,16 +70,17 @@ def tokenize(ipa: str, *, symbols: Symbols) -> tuple[str, ...]:
     text = "".join(c for c in text if c not in IGNORED)
     longest = max(map(len, symbols))
     phonemes: list[str] = []
-    i = 0
-    while i < len(text):
-        for size in range(min(longest, len(text) - i), 0, -1):
-            match = symbols.get(text[i : i + size])
-            if match is not None:
-                phonemes.extend(match)
-                i += size
-                break
-        else:
-            raise UnknownSymbol(symbol=text[i], transcription=ipa)
+    for piece in BOUNDARY.split(text):
+        i = 0
+        while i < len(piece):
+            for size in range(min(longest, len(piece) - i), 0, -1):
+                match = symbols.get(piece[i : i + size])
+                if match is not None:
+                    phonemes.extend(match)
+                    i += size
+                    break
+            else:
+                raise UnknownSymbol(symbol=piece[i], transcription=ipa)
     return tuple(phonemes)
 
 
@@ -92,6 +97,6 @@ def tokenize_segmented(
     return tuple(
         phoneme
         for segment in re.split(separator, ipa)
-        if segment.strip("ˈˌ")
+        if BOUNDARY.sub("", segment)
         for phoneme in tokenize(segment, symbols=symbols)
     )
