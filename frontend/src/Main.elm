@@ -71,6 +71,10 @@ type alias Model =
     { settings : Settings
     , mode : Mode
     , today : Maybe String
+
+    -- The date of the daily puzzle being shown. It lags behind today while
+    -- you finish a puzzle you started before midnight.
+    , puzzleDay : Maybe String
     , accents : Load (List Dictionary.AccentInfo)
     , dictionaries : Dict String (Load Dictionary)
 
@@ -107,12 +111,13 @@ init flags =
         saved =
             D.decodeValue savedDecoder flags
                 |> Result.withDefault
-                    { settings = defaultSettings, mode = Daily, daily = Dict.empty, free = Dict.empty }
+                    { settings = defaultSettings, mode = Daily, puzzleDay = Nothing, daily = Dict.empty, free = Dict.empty }
 
         model =
             { settings = saved.settings
             , mode = saved.mode
             , today = Nothing
+            , puzzleDay = saved.puzzleDay
             , accents = Loading
             , dictionaries = Dict.empty
             , daily = saved.daily
@@ -228,7 +233,7 @@ gameKey model =
     in
     case model.mode of
         Daily ->
-            Maybe.map (\day -> base ++ "/" ++ day) model.today
+            Maybe.map (\day -> base ++ "/" ++ day) model.puzzleDay
 
         Free ->
             Just base
@@ -286,6 +291,41 @@ ensureGame ( model, cmd ) =
             ( model, cmd )
 
 
+{-| Move the daily puzzle on to today, unless you're partway through an
+earlier one.
+-}
+catchUp : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+catchUp ( model, cmd ) =
+    let
+        inProgress day =
+            case Dict.get (model.settings.accent ++ "/" ++ String.fromInt model.settings.length ++ "/" ++ day) model.daily of
+                Just game ->
+                    game.guesses /= [] && Game.status game == Game.Playing
+
+                Nothing ->
+                    False
+
+        puzzleDay =
+            if Maybe.map inProgress model.puzzleDay == Just True then
+                model.puzzleDay
+
+            else
+                model.today
+    in
+    if puzzleDay == model.puzzleDay then
+        ensureGame ( model, cmd )
+
+    else
+        ensureGame
+            ( if model.mode == Daily then
+                clearRow { model | puzzleDay = puzzleDay }
+
+              else
+                { model | puzzleDay = puzzleDay }
+            , cmd
+            )
+
+
 
 -- PERSISTENCE
 
@@ -293,6 +333,7 @@ ensureGame ( model, cmd ) =
 type alias Saved =
     { settings : Settings
     , mode : Mode
+    , puzzleDay : Maybe String
     , daily : Dict String Game
     , free : Dict String Game
     }
@@ -336,9 +377,10 @@ savedDecoder =
                             Daily
                     )
     in
-    D.map4 Saved
+    D.map5 Saved
         (field "settings" settingsDecoder defaultSettings)
         (field "mode" modeDecoder Daily)
+        (field "puzzleDay" (D.nullable D.string) Nothing)
         (field "daily" gamesDecoder Dict.empty)
         (field "free" gamesDecoder Dict.empty)
 
@@ -365,6 +407,7 @@ encodeSaved model =
                         "free"
                 )
           )
+        , ( "puzzleDay", Maybe.withDefault JE.null (Maybe.map JE.string model.puzzleDay) )
         , ( "daily", JE.dict identity Game.encode model.daily )
         , ( "free", JE.dict identity Game.encode model.free )
         ]
@@ -405,6 +448,7 @@ type Msg
     | Chose String String
     | SetMode Mode
     | StartFreeGame
+    | GoToToday
     | SetPanel (Maybe Panel)
     | SetSettings Settings
     | Share
@@ -441,11 +485,7 @@ update msg model =
                 )
 
         GotToday day ->
-            if model.today == Just day then
-                ( model, Cmd.none )
-
-            else
-                ensureGame ( clearRow { model | today = Just day }, Cmd.none )
+            catchUp ( { model | today = Just day }, Cmd.none )
 
         NewFreeGame key index ->
             case currentDictionary model of
@@ -514,6 +554,9 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        GoToToday ->
+            ensureGame ( clearRow { model | puzzleDay = model.today }, Cmd.none )
+
         SetPanel panel ->
             ( { model | panel = panel }, Cmd.none )
 
@@ -525,7 +568,7 @@ update msg model =
                 rowChanged =
                     settings.accent /= model.settings.accent || settings.length /= model.settings.length
             in
-            ensureGame
+            catchUp
                 ( if rowChanged then
                     clearRow loaded
 
@@ -661,7 +704,7 @@ shareText model game =
         title =
             case model.mode of
                 Daily ->
-                    "Sounding " ++ Maybe.withDefault "" model.today
+                    "Sounding " ++ Maybe.withDefault "" model.puzzleDay
 
                 Free ->
                     "Sounding (random)"
@@ -790,7 +833,7 @@ viewHeader model =
     Html.header []
         [ Html.h1 [] [ Html.text "Sounding" ]
         , Html.nav []
-            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map (String.dropLeft 5) model.today))
+            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map (String.dropLeft 5) model.puzzleDay))
             , tab Free "Random"
             ]
         , Html.div [ A.class "header-buttons" ]
@@ -1109,9 +1152,15 @@ viewEnd model dict game state =
             , Html.text (String.join ", " (List.map .spelling words))
             ]
         , Html.div [ A.class "end-buttons" ]
-            [ Html.button [ E.onClick Share ] [ Html.text "Share" ]
-            , Html.button [ E.onClick StartFreeGame ] [ Html.text "New random game" ]
-            ]
+            ([ Html.button [ E.onClick Share ] [ Html.text "Share" ] ]
+                ++ (if model.mode == Daily && model.puzzleDay /= model.today then
+                        [ Html.button [ E.onClick GoToToday ] [ Html.text "Today's puzzle" ] ]
+
+                    else
+                        []
+                   )
+                ++ [ Html.button [ E.onClick StartFreeGame ] [ Html.text "New random game" ] ]
+            )
         ]
 
 
