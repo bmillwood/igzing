@@ -10,12 +10,12 @@ rec {
   # This stage is deterministic and needs no network access; espeak-ng and
   # wordfreq's frequency lists come pinned by nixpkgs.
   data =
-    pkgs.runCommand "sounding-data"
+    pkgs.runCommand "igzing-data"
       {
         src = fs.toSource {
           root = ./.;
           fileset = fs.unions [
-            ./pipeline/sounding_data
+            ./pipeline/igzing_data
             ./data/sources
           ];
         };
@@ -27,12 +27,12 @@ rec {
       }
       ''
         cd $src
-        PYTHONPATH=pipeline python -m sounding_data build --out $out
+        PYTHONPATH=pipeline python -m igzing_data build --out $out
       '';
 
   # The static site: everything needed to serve the game.
   site = pkgs.stdenv.mkDerivation {
-    pname = "sounding";
+    pname = "igzing";
     version = "0.1.0";
     src = fs.toSource {
       root = ./frontend;

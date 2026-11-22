@@ -21,4 +21,4 @@ files=$(find . -type f ! -name sw.js | sed 's|^\./||' | LC_ALL=C sort)
 # shellcheck disable=SC2086 # file names are ours, without spaces
 version=$(cat $files | sha256sum | cut -c1-16)
 files_json=$(printf '%s\n' $files | jq -R . | jq -sc .)
-sed -i -e "s|\"@VERSION@\"|\"sounding-$version\"|" -e "s|\"@FILES@\"|$files_json|" sw.js
+sed -i -e "s|\"@VERSION@\"|\"igzing-$version\"|" -e "s|\"@FILES@\"|$files_json|" sw.js

@@ -18,7 +18,7 @@ import json
 import re
 import sys
 
-from sounding_data import download, sourcefile
+from igzing_data import download, sourcefile
 
 URL = "https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl.gz"
 

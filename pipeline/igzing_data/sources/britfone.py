@@ -5,7 +5,7 @@ https://github.com/JoseLlarena/Britfone
 
 import re
 
-from sounding_data import download, sourcefile
+from igzing_data import download, sourcefile
 
 URL = "https://raw.githubusercontent.com/JoseLlarena/Britfone/1062be14adc96c358f2087ac5449d72130c7a6f4/britfone.main.3.0.1.csv"
 

@@ -16,7 +16,7 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - run: nix-shell --run 'PYTHONPATH=pipeline python -m sounding_data fetch'
+      - run: nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data fetch'
       - uses: peter-evans/create-pull-request@v7
         with:
           branch: fetch-sources
