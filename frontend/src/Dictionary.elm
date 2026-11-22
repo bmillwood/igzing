@@ -53,9 +53,7 @@ type alias Accent =
 
 type alias Word =
     { spelling : String
-
-    -- Zipf frequency × 10
-    , zipf : Int
+    , zipf : Float
     , source : String
     , pronunciations : List String
 
@@ -63,7 +61,7 @@ type alias Word =
     , headword : Bool
 
     -- For ordering suggestions: headwords first, then by frequency
-    , rank : Int
+    , rank : Float
     }
 
 
@@ -75,7 +73,7 @@ type alias Entry =
 
     -- Best ranked first
     , words : List Word
-    , rank : Int
+    , rank : Float
     }
 
 
@@ -113,14 +111,14 @@ decoder =
 
 
 type alias RawWord =
-    { spelling : String, zipf : Int, source : Int, pronunciations : List String, headword : Bool }
+    { spelling : String, zipf : Float, source : Int, pronunciations : List String, headword : Bool }
 
 
 rawWordDecoder : D.Decoder RawWord
 rawWordDecoder =
     D.map5 RawWord
         (D.index 0 D.string)
-        (D.index 1 D.int)
+        (D.index 1 D.float)
         (D.index 2 D.int)
         (D.index 3 (D.list D.string))
         (D.index 4 (D.map ((==) 1) D.int))

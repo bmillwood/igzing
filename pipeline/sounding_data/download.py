@@ -14,10 +14,7 @@ def cached(url: str, *, refresh: bool) -> pathlib.Path:
         print(f"downloading {url}", file=sys.stderr)
         CACHE.mkdir(exist_ok=True)
         partial = path.with_suffix(path.suffix + ".partial")
-        request = urllib.request.Request(
-            url, headers={"User-Agent": "sounding-data-pipeline"}
-        )
-        with urllib.request.urlopen(request) as response, partial.open("wb") as out:
+        with urllib.request.urlopen(url) as response, partial.open("wb") as out:
             shutil.copyfileobj(response, out)
         partial.rename(path)
     return path

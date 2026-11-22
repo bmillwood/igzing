@@ -13,10 +13,9 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
       - run: nix-build -A site
       - run: nix-shell --run 'cd frontend && elm-test'
-      - run: cp -rL result site
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: result
 
   deploy:
     if: github.ref == 'refs/heads/main'

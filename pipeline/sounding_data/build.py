@@ -322,14 +322,14 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
             "keyboard": [list(row) for row in accent.keyboard],
         },
         "sources": [layer.name for layer in spec.layers],
-        # [spelling, Zipf frequency × 10, source index, pronunciations,
+        # [spelling, Zipf frequency, source index, pronunciations,
         # headword], most frequent first. Pronunciations are phoneme ids
         # separated by spaces. Headword is 1 for a dictionary word, as opposed
         # to a name, abbreviation, etc.
         "words": [
             [
                 spelling,
-                round(zipf[spelling] * 10),
+                round(zipf[spelling], 1),
                 layer_index[layer_name],
                 sorted(" ".join(p) for p in prons),
                 int(spelling in headwords),
