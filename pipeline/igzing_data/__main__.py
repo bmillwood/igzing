@@ -1,13 +1,13 @@
 import argparse
 
-from sounding_data import build
-from sounding_data.sources import britfone, wiktionary
+from igzing_data import build
+from igzing_data.sources import britfone, wiktionary
 
 FETCHERS = {"britfone": britfone.fetch, "wiktionary": wiktionary.fetch}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="sounding-data")
+    parser = argparse.ArgumentParser(prog="igzing-data")
     commands = parser.add_subparsers(dest="command", required=True)
 
     fetch = commands.add_parser(

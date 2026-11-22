@@ -1,4 +1,4 @@
-# Sounding
+# Igzing
 
 Guess the word by its sounds: a phonemic Wordle, starting with British
 English. It works offline once loaded, so you can play it on the Underground.
@@ -15,7 +15,7 @@ American English with CMUdict.
 
 ## Layout
 
-- `pipeline/sounding_data/`: the data pipeline (Python).
+- `pipeline/igzing_data/`: the data pipeline (Python).
 - `data/sources/`: the pipeline's fetched, normalised sources. These are
   committed.
 - `frontend/`: the game (Elm), plus a small JS service worker for offline play.
@@ -33,7 +33,7 @@ separate from the part that decides what the game contains:
    review. The `fetch` workflow does this monthly and opens a PR.
 
    ```sh
-   nix-shell --run 'PYTHONPATH=pipeline python -m sounding_data fetch'
+   nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data fetch'
    ```
 
    Downloads are cached in `.cache/`. Wiktionary's is 530 MB, so pass
@@ -44,7 +44,7 @@ separate from the part that decides what the game contains:
    it.
 
    ```sh
-   nix-shell --run 'PYTHONPATH=pipeline python -m sounding_data build --out _build/data'
+   nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data build --out _build/data'
    ```
 
    It prints how many words each layer contributed, and the transcriptions it

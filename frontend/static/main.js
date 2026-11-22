@@ -3,12 +3,11 @@
 // localStorage is shared by the whole origin, which includes this site's
 // branch previews in pr/N/, so each copy of the site keeps its games under its
 // own path.
-const STORAGE_KEY = `sounding ${new URL(".", location.href).pathname}`;
+const STORAGE_KEY = `igzing ${new URL(".", location.href).pathname}`;
 
 let saved = null;
 try {
-  // Before previews, everything was saved under plain "sounding".
-  saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem("sounding"));
+  saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
 } catch (e) {
   console.warn("couldn't read saved games", e);
 }

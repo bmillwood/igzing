@@ -83,8 +83,8 @@ jobs:
           exec > site/pr/index.html
           echo '<!DOCTYPE html>'
           echo '<meta charset="UTF-8">'
-          echo '<title>Sounding previews</title>'
-          echo '<h1>Sounding previews</h1>'
+          echo '<title>Igzing previews</title>'
+          echo '<h1>Igzing previews</h1>'
           if compgen -G 'site/pr/*/' > /dev/null; then
             echo '<ul>'
             for dir in site/pr/*/; do

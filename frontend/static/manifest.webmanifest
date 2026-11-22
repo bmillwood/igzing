@@ -1,6 +1,6 @@
 {
-  "name": "Sounding",
-  "short_name": "Sounding",
+  "name": "Igzing",
+  "short_name": "Igzing",
   "description": "Guess the word by its sounds: a phonemic Wordle that works offline.",
   "start_url": "./",
   "scope": "./",

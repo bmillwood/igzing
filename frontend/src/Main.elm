@@ -704,10 +704,10 @@ shareText model game =
         title =
             case model.mode of
                 Daily ->
-                    "Sounding " ++ Maybe.withDefault "" model.puzzleDay
+                    "Igzing " ++ Maybe.withDefault "" model.puzzleDay
 
                 Free ->
-                    "Sounding (random)"
+                    "Igzing (random)"
 
         grid =
             game.guesses
@@ -831,7 +831,7 @@ viewHeader model =
                 [ Html.text label ]
     in
     Html.header []
-        [ Html.h1 [] [ Html.text "Sounding" ]
+        [ Html.h1 [] [ Html.text "Igzing" ]
         , Html.nav []
             [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map (String.dropLeft 5) model.puzzleDay))
             , tab Free "Random"

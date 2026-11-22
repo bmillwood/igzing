@@ -19,8 +19,8 @@ import sys
 
 import wordfreq
 
-from sounding_data import accents, ipa, sourcefile
-from sounding_data.sources import britfone, espeak
+from igzing_data import accents, ipa, sourcefile
+from igzing_data.sources import britfone, espeak
 
 Pronunciation = tuple[str, ...]
 
