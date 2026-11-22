@@ -42,7 +42,7 @@ jobs:
       # than keeping an artifact from main's last CI run means main's site
       # can't expire, at the cost of a minute or so per deploy.
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - run: nix-build -A site
