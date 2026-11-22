@@ -13,7 +13,9 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(VERSION)
-      .then((cache) => cache.addAll(["./", ...FILES]))
+      // Bypass the HTTP cache, which could otherwise hand us the previous
+      // build's files to store under this build's name.
+      .then((cache) => cache.addAll(["./", ...FILES].map((f) => new Request(f, { cache: "reload" }))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -28,7 +30,8 @@ self.addEventListener("activate", (event) => {
 });
 
 // Cache first: the files are all versioned together, so whatever's cached is
-// consistent, and a new build arrives via a new service worker.
+// consistent, and a new build arrives via a new service worker. Pages reload
+// when that takes over (see main.js), so they don't mix two builds' files.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(

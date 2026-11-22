@@ -312,6 +312,19 @@ savedDecoder =
                 (field "showCompletions" D.bool defaultSettings.showCompletions)
                 (field "showExamples" D.bool defaultSettings.showExamples)
 
+        -- Skip any game that doesn't decode, rather than losing them all.
+        gamesDecoder =
+            D.keyValuePairs D.value
+                |> D.map
+                    (List.filterMap
+                        (\( key, value ) ->
+                            D.decodeValue Game.decoder value
+                                |> Result.toMaybe
+                                |> Maybe.map (Tuple.pair key)
+                        )
+                        >> Dict.fromList
+                    )
+
         modeDecoder =
             D.string
                 |> D.map
@@ -326,8 +339,8 @@ savedDecoder =
     D.map4 Saved
         (field "settings" settingsDecoder defaultSettings)
         (field "mode" modeDecoder Daily)
-        (field "daily" (D.dict Game.decoder) Dict.empty)
-        (field "free" (D.dict Game.decoder) Dict.empty)
+        (field "daily" gamesDecoder Dict.empty)
+        (field "free" gamesDecoder Dict.empty)
 
 
 encodeSaved : Model -> JE.Value
@@ -706,17 +719,25 @@ subscriptions _ =
         [ shared Shared
         , Browser.Events.onVisibilityChange VisibilityChanged
         , Browser.Events.onKeyDown
-            (D.map2 Tuple.pair
+            (D.map3
+                (\key tag modified ->
+                    if List.member tag [ "INPUT", "SELECT", "BUTTON", "TEXTAREA" ] then
+                        D.fail "focus is elsewhere"
+
+                    else if modified then
+                        D.fail "a browser shortcut"
+
+                    else
+                        D.succeed (TypedElsewhere key)
+                )
                 (D.field "key" D.string)
                 (D.at [ "target", "tagName" ] D.string)
-                |> D.andThen
-                    (\( key, tag ) ->
-                        if List.member tag [ "INPUT", "SELECT", "BUTTON", "TEXTAREA" ] then
-                            D.fail "focus is elsewhere"
-
-                        else
-                            D.succeed (TypedElsewhere key)
-                    )
+                (D.map3 (\ctrl meta alt -> ctrl || meta || alt)
+                    (D.field "ctrlKey" D.bool)
+                    (D.field "metaKey" D.bool)
+                    (D.field "altKey" D.bool)
+                )
+                |> D.andThen identity
             )
         ]
 
@@ -762,6 +783,7 @@ viewHeader model =
             Html.button
                 [ A.classList [ ( "tab", True ), ( "active", model.mode == mode ) ]
                 , E.onClick (SetMode mode)
+                , keepFocus
                 ]
                 [ Html.text label ]
     in
@@ -772,8 +794,8 @@ viewHeader model =
             , tab Free "Random"
             ]
         , Html.div [ A.class "header-buttons" ]
-            [ Html.button [ A.class "icon", A.title "How to play", E.onClick (SetPanel (Just HelpPanel)) ] [ Html.text "?" ]
-            , Html.button [ A.class "icon", A.title "Settings", E.onClick (SetPanel (Just SettingsPanel)) ] [ Html.text "⚙" ]
+            [ Html.button [ A.class "icon", A.title "How to play", E.onClick (SetPanel (Just HelpPanel)), keepFocus ] [ Html.text "?" ]
+            , Html.button [ A.class "icon", A.title "Settings", E.onClick (SetPanel (Just SettingsPanel)), keepFocus ] [ Html.text "⚙" ]
             ]
         ]
 
@@ -938,7 +960,7 @@ viewHelpers model dict =
                 Dictionary.completeSpelling dict length 6 text
                     |> List.map
                         (\( word, key ) ->
-                            Html.button [ A.class "suggestion", E.onClick (Chose key word.spelling) ]
+                            Html.button [ A.class "suggestion", E.onClick (Chose key word.spelling), keepFocus ]
                                 [ Html.text word.spelling, Html.text " ", viewPronunciation dict key ]
                         )
 
@@ -949,7 +971,7 @@ viewHelpers model dict =
                 in
                 List.map
                     (\e ->
-                        Html.button [ A.class "suggestion", E.onClick (Chose e.key "") ]
+                        Html.button [ A.class "suggestion", E.onClick (Chose e.key ""), keepFocus ]
                             [ viewPronunciation dict e.key
                             , Html.text " "
                             , Html.text (String.join ", " (List.take 2 (List.map .spelling e.words)))
@@ -1015,9 +1037,9 @@ viewHelpers model dict =
         ]
 
 
-{-| Stop on-screen keys taking focus when clicked, so that a physical Enter
-afterwards submits the guess rather than pressing the same key again, and so
-that the spelling box keeps focus while you use them.
+{-| Stop game buttons taking focus when clicked, so that a physical Enter
+afterwards submits the guess rather than pressing the same button again, and
+so that the spelling box keeps focus while you use them.
 -}
 keepFocus : Html.Attribute Msg
 keepFocus =

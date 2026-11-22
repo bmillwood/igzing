@@ -37,6 +37,14 @@ app.ports.share.subscribe(async (text) => {
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((e) => console.warn("no offline support", e));
+  // A new build's service worker takes over open pages as soon as it's
+  // installed, and deletes the old build's files, so reload onto the new
+  // build. Progress is saved after every change, so this loses at most a
+  // half-typed guess. A page with no service worker yet is just being taken
+  // over for the first time, and is already up to date.
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+  }
   // Ask the browser not to evict the offline copy under storage pressure.
   navigator.storage?.persist?.();
 }
