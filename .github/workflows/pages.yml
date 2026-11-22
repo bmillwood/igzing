@@ -1,0 +1,123 @@
+# Deploys main at the root of the Pages site, and every pull request's build
+# in pr/N/. A Pages site is one deployment, so each run rebuilds the whole
+# thing from main and whichever previews exist right now.
+on:
+  workflow_run:
+    workflows: [.github/workflows/ci.yml]
+    types: [completed]
+  # Previews expire with their artifacts rather than being deleted, so there
+  # is rarely a reason to run this by hand, but there's no reason not to.
+  workflow_dispatch:
+  # A dry run: assemble the site exactly as a real run would, and stop short
+  # of deploying it. Only worth doing when this file is what changed.
+  pull_request:
+    paths:
+      - .github/workflows/pages.yml
+
+# Listing the artifacts is part of the critical section, so the group covers
+# the whole workflow and not just the deployment: a run that listed before a
+# newer one uploaded would otherwise be able to deploy a site missing that
+# upload, and win by finishing last.
+#
+# Dry runs deploy nothing, so they neither need to wait for that group nor to
+# survive being superseded.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pages-dry-run-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  assemble:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+
+    steps:
+      # A workflow_run checks out the default branch. Building it here rather
+      # than keeping an artifact from main's last CI run means main's site
+      # can't expire, at the cost of a minute or so per deploy.
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - run: nix-build -A site
+      - run: cp --no-preserve=mode --recursive --dereference result site
+
+      - run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts" \
+            --jq '[.artifacts[] | select(.expired | not) | select(.name | startswith("site-pr-"))]' \
+          | jq --slurp --raw-output '
+              add
+              # A preview shares its origin with the real site, and with
+              # other Pages sites on the same account, so it can read and write
+              # their storage. Only deploy builds of branches in this
+              # repository, not of pull requests from forks, which anyone can
+              # open.
+              | map(select(.workflow_run.head_repository_id == .workflow_run.repository_id))
+              # Several runs of the same pull request upload the same artifact
+              # name; only the newest of them is the current preview.
+              | group_by(.name) | map(max_by(.created_at))
+              | .[] | "\(.name | ltrimstr("site-pr-"))\t\(.archive_download_url)"
+            ' \
+          | while IFS=$'\t' read -r number url; do
+              # curl declines to pass the Authorization header on to the
+              # storage host it gets redirected to, which is what we want.
+              curl --silent --show-error --fail --location \
+                --header "Authorization: Bearer $GH_TOKEN" \
+                --output preview.zip "$url"
+              mkdir -p "site/pr/$number"
+              unzip -q preview.zip -d "site/pr/$number"
+              echo "unpacked pr/$number"
+            done
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # A way to find the previews.
+      - run: |
+          mkdir -p site/pr
+          exec > site/pr/index.html
+          echo '<!DOCTYPE html>'
+          echo '<meta charset="UTF-8">'
+          echo '<title>Sounding previews</title>'
+          echo '<h1>Sounding previews</h1>'
+          if compgen -G 'site/pr/*/' > /dev/null; then
+            echo '<ul>'
+            for dir in site/pr/*/; do
+              number=$(basename "$dir")
+              # A pull request title is written by whoever opened the pull
+              # request, so it reaches this page through @html and not
+              # otherwise.
+              title=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number" --jq '.title | @html')
+              echo "<li><a href=\"$number/\">#$number</a> $title</li>"
+            done
+            echo '</ul>'
+          else
+            echo '<p>None at the moment.</p>'
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # A dry run uploads this too, so that what it would have deployed is
+      # there to be downloaded and looked at.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: assemble
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
