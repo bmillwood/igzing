@@ -17,7 +17,7 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - run: nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data fetch'
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8
         with:
           branch: fetch-sources
           title: Update pronunciation sources
