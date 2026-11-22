@@ -471,3 +471,56 @@ main {
 a {
   color: var(--accent);
 }
+
+/* Wide, short windows, like most laptop screens, leave little height for the
+   board above the keyboard, so put the keyboard beside it. */
+@media (min-width: 40rem) and (min-aspect-ratio: 5/4) {
+  .app {
+    max-width: 64rem;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 30rem);
+    grid-template-rows: 1fr auto;
+    column-gap: 1.5rem;
+  }
+
+  .board {
+    grid-area: 1 / 1;
+  }
+
+  .message {
+    grid-area: 2 / 1;
+  }
+
+  .input,
+  .end {
+    grid-area: 1 / 2 / 3;
+    align-self: center;
+  }
+}
+
+/* Phones in landscape: squeeze the keyboard to fit the height. */
+@media (max-height: 28rem) {
+  header {
+    padding: 0.2rem 0;
+  }
+
+  .key {
+    min-height: 0;
+    padding: 0.05rem 0;
+  }
+
+  .key .label {
+    font-size: 1rem;
+  }
+
+  .input {
+    gap: 0.25rem;
+  }
+
+  .keyboard {
+    gap: 0.2rem;
+  }
+}
