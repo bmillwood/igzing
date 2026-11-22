@@ -20,20 +20,14 @@ jobs:
       # Pull requests hand their build to pages.yml, which deploys main along
       # with every open preview. (It skips builds from forks.)
       - if: github.event_name == 'pull_request'
-        # result/ is a symlink into a read-only store, neither of which
-        # survives being zipped up into an artifact.
-        run: cp --no-preserve=mode --recursive --dereference result site
-      - if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: site-pr-${{ github.event.number }}
-          path: site/
+          path: result/
           retention-days: 14
 
       # Only on opened: the URL doesn't change as the branch is pushed to.
-      - if: >-
-          github.event.action == 'opened'
-          && github.event.pull_request.head.repo.full_name == github.repository
+      - if: github.event.action == 'opened'
         run: |
           page_url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)
           gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" \
