@@ -100,7 +100,7 @@ defaultSettings =
     { accent = "en-GB"
     , length = 5
     , showSpellings = True
-    , showCompletions = True
+    , showCompletions = False
     , showExamples = True
     }
 
