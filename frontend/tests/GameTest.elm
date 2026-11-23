@@ -30,6 +30,12 @@ suite =
                 D.decodeString Game.decoder """{"answer": "a", "guesses": ["b", "b", "b", "b", "b", "b"]}"""
                     |> Result.map Game.status
                     |> Expect.equal (Ok Game.Lost)
+        , test "turning unlimited guesses off doesn't end a game that's already past six" <|
+            \_ ->
+                List.foldl (Game.addGuess { unlimited = True }) (Game.start "a") (List.repeat 7 "b")
+                    |> Game.addGuess { unlimited = False } "b"
+                    |> Game.status
+                    |> Expect.equal Game.Playing
         , test "dailyIndex is 32-bit FNV-1a, so changing it would change everyone's daily answer" <|
             \_ ->
                 -- Reference value from Python:

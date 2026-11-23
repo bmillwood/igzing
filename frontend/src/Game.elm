@@ -45,8 +45,10 @@ start answer =
     { answer = answer, guesses = [], lost = False }
 
 
-{-| Add a guess, which loses the game if it's a wrong one that uses up the
-guesses, unless they're unlimited.
+{-| Add a guess, which loses the game if it's a wrong sixth guess, unless
+guesses are unlimited. Only the sixth: a game that's already gone past six,
+while guesses were unlimited, carries on as if they still were, so that
+turning them off can't end it.
 -}
 addGuess : { unlimited : Bool } -> String -> Game -> Game
 addGuess { unlimited } guessed game =
@@ -56,7 +58,7 @@ addGuess { unlimited } guessed game =
     in
     { game
         | guesses = guesses
-        , lost = not unlimited && guessed /= game.answer && List.length guesses >= maxGuesses
+        , lost = not unlimited && guessed /= game.answer && List.length guesses == maxGuesses
     }
 
 

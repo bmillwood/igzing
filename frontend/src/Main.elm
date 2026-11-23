@@ -115,6 +115,9 @@ type alias Model =
 
     -- Bumped to restart the shake animation on an invalid guess
     , shakes : Int
+
+    -- Whether "Give up" has been pressed, and is waiting to be confirmed
+    , confirmingGiveUp : Bool
     }
 
 
@@ -152,6 +155,7 @@ init flags =
             , message = Nothing
             , panel = Nothing
             , shakes = 0
+            , confirmingGiveUp = False
             }
 
         ( loaded, loadCmd ) =
@@ -527,6 +531,7 @@ type Msg
     | PressedPhoneme String
     | PressedBackspace
     | PressedEnter
+    | ConfirmingGiveUp Bool
     | GaveUp
     | TypedText String
     | Chose String String
@@ -600,6 +605,9 @@ update msg model =
 
         PressedEnter ->
             submit model
+
+        ConfirmingGiveUp confirming ->
+            ( { model | confirmingGiveUp = confirming }, Cmd.none )
 
         GaveUp ->
             ( updateGame Game.giveUp model, Cmd.none )
@@ -704,7 +712,7 @@ update msg model =
 
 clearRow : Model -> Model
 clearRow model =
-    { model | row = [], text = "", message = Nothing }
+    { model | row = [], text = "", message = Nothing, confirmingGiveUp = False }
 
 
 playing : Model -> Bool
@@ -981,11 +989,17 @@ viewGame model dict game =
             Html.div [ A.class "input" ]
                 [ viewHelpers model dict
                 , viewKeyboard model dict game
-                , if model.settings.unlimitedGuesses then
-                    Html.button [ A.class "give-up", E.onClick GaveUp, keepFocus ] [ Html.text "Give up and see the answer" ]
+                , Html.div [ A.class "give-up" ]
+                    (if model.confirmingGiveUp then
+                        [ Html.text "Give up and see the answer? "
+                        , Html.button [ E.onClick GaveUp, keepFocus ] [ Html.text "Yes" ]
+                        , Html.text " "
+                        , Html.button [ E.onClick (ConfirmingGiveUp False), keepFocus ] [ Html.text "No" ]
+                        ]
 
-                  else
-                    Html.text ""
+                     else
+                        [ Html.button [ E.onClick (ConfirmingGiveUp True), keepFocus ] [ Html.text "Give up" ] ]
+                    )
                 ]
 
           else
@@ -1253,9 +1267,6 @@ viewEnd model dict game state =
             [ Html.text
                 (if state == Game.Won then
                     "Got it in " ++ String.fromInt (List.length game.guesses) ++ "!"
-
-                 else if List.length game.guesses == Game.maxGuesses then
-                    "Out of guesses. The answer was"
 
                  else
                     "The answer was"

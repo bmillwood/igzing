@@ -391,11 +391,16 @@ main {
 }
 
 .give-up {
-  align-self: center;
-  border: none;
-  background: none;
+  text-align: center;
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.give-up button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
   text-decoration: underline;
   padding: 0;
 }
