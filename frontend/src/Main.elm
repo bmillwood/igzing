@@ -48,7 +48,29 @@ type alias Settings =
     , showSpellings : Bool
     , showCompletions : Bool
     , showExamples : Bool
+    , theme : Theme
     }
+
+
+type Theme
+    = AutoTheme
+    | LightTheme
+    | DarkTheme
+
+
+{-| As saved, and as main.js sets it on the root element for the stylesheet.
+-}
+themeToString : Theme -> String
+themeToString theme =
+    case theme of
+        AutoTheme ->
+            "auto"
+
+        LightTheme ->
+            "light"
+
+        DarkTheme ->
+            "dark"
 
 
 type Mode
@@ -100,8 +122,9 @@ defaultSettings =
     { accent = "en-GB"
     , length = 5
     , showSpellings = True
-    , showCompletions = True
+    , showCompletions = False
     , showExamples = True
+    , theme = AutoTheme
     }
 
 
@@ -139,6 +162,43 @@ init flags =
         , Http.get { url = "data/accents.json", expect = Http.expectJson GotAccents Dictionary.accentsDecoder }
         ]
     )
+
+
+{-| An ISO date as e.g. "23rd Nov", for display. Falls back to the input if
+it doesn't parse.
+-}
+shortDate : String -> String
+shortDate iso =
+    case List.map String.toInt (String.split "-" iso) of
+        [ Just _, Just month, Just day ] ->
+            let
+                ordinal =
+                    if modBy 100 day >= 11 && modBy 100 day <= 13 then
+                        "th"
+
+                    else
+                        case modBy 10 day of
+                            1 ->
+                                "st"
+
+                            2 ->
+                                "nd"
+
+                            3 ->
+                                "rd"
+
+                            _ ->
+                                "th"
+
+                monthName =
+                    List.drop (month - 1) [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
+                        |> List.head
+                        |> Maybe.withDefault (String.fromInt month)
+            in
+            String.fromInt day ++ ordinal ++ " " ++ monthName
+
+        _ ->
+            iso
 
 
 getToday : Cmd Msg
@@ -346,12 +406,25 @@ savedDecoder =
             D.oneOf [ D.field name dec, D.succeed default ]
 
         settingsDecoder =
-            D.map5 Settings
+            D.map6 Settings
                 (field "accent" D.string defaultSettings.accent)
                 (field "length" D.int defaultSettings.length)
                 (field "showSpellings" D.bool defaultSettings.showSpellings)
                 (field "showCompletions" D.bool defaultSettings.showCompletions)
                 (field "showExamples" D.bool defaultSettings.showExamples)
+                (field "theme" themeDecoder defaultSettings.theme)
+
+        themeDecoder =
+            D.string
+                |> D.andThen
+                    (\string ->
+                        case List.filter (\theme -> themeToString theme == string) [ AutoTheme, LightTheme, DarkTheme ] of
+                            theme :: _ ->
+                                D.succeed theme
+
+                            [] ->
+                                D.fail ("unknown theme " ++ string)
+                    )
 
         -- Skip any game that doesn't decode, rather than losing them all.
         gamesDecoder =
@@ -395,6 +468,7 @@ encodeSaved model =
                 , ( "showSpellings", JE.bool model.settings.showSpellings )
                 , ( "showCompletions", JE.bool model.settings.showCompletions )
                 , ( "showExamples", JE.bool model.settings.showExamples )
+                , ( "theme", JE.string (themeToString model.settings.theme) )
                 ]
           )
         , ( "mode"
@@ -833,7 +907,7 @@ viewHeader model =
     Html.header []
         [ Html.h1 [] [ Html.text "Igzing" ]
         , Html.nav []
-            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map (String.dropLeft 5) model.puzzleDay))
+            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map shortDate model.puzzleDay))
             , tab Free "Random"
             ]
         , Html.div [ A.class "header-buttons" ]
@@ -1166,8 +1240,26 @@ viewEnd model dict game state =
 
 viewOverlay : String -> List (Html Msg) -> Html Msg
 viewOverlay title content =
-    Html.div [ A.class "overlay", E.onClick (SetPanel Nothing) ]
-        [ Html.div [ A.class "panel", E.stopPropagationOn "click" (D.succeed ( NoOp, True )) ]
+    let
+        -- Close on clicks on the backdrop, but not ones that bubble up from
+        -- the panel. Don't stop propagation in the panel instead: Elm
+        -- re-renders synchronously for such handlers, resetting checkboxes'
+        -- `checked` to the old model's value before their change event.
+        onBackdropClick =
+            E.on "click"
+                (D.at [ "target", "className" ] D.string
+                    |> D.andThen
+                        (\class ->
+                            if class == "overlay" then
+                                D.succeed (SetPanel Nothing)
+
+                            else
+                                D.fail "click inside the panel"
+                        )
+                )
+    in
+    Html.div [ A.class "overlay", onBackdropClick ]
+        [ Html.div [ A.class "panel" ]
             (Html.div [ A.class "panel-header" ]
                 [ Html.h2 [] [ Html.text title ]
                 , Html.button [ A.class "icon", E.onClick (SetPanel Nothing), A.title "Close" ] [ Html.text "✕" ]
@@ -1221,6 +1313,18 @@ viewSettings model =
         , checkbox "Show spellings of guesses" s.showSpellings (\b -> SetSettings { s | showSpellings = b })
         , checkbox "Suggest words as I type" s.showCompletions (\b -> SetSettings { s | showCompletions = b })
         , checkbox "Show example words on keys" s.showExamples (\b -> SetSettings { s | showExamples = b })
+        , Html.div [ A.class "setting" ]
+            (Html.text "Theme "
+                :: List.map
+                    (\( theme, label ) ->
+                        Html.button
+                            [ A.classList [ ( "choice", True ), ( "active", s.theme == theme ) ]
+                            , E.onClick (SetSettings { s | theme = theme })
+                            ]
+                            [ Html.text label ]
+                    )
+                    [ ( AutoTheme, "Auto" ), ( LightTheme, "Light" ), ( DarkTheme, "Dark" ) ]
+            )
         , Html.p [ A.class "small" ]
             [ Html.text "Daily and random games are kept separately, so you can switch between them at any time." ]
         ]
@@ -1269,5 +1373,10 @@ viewHelp model =
             [ Html.text "Inspired by "
             , Html.a [ A.href "https://joshuamandel.com/heardle/" ] [ Html.text "Heardle" ]
             , Html.text " by Carrie Niziolek and Josh Mandel."
+            ]
+        , Html.p [ A.class "small" ]
+            [ Html.text "Source code, bug reports and suggestions: "
+            , Html.a [ A.href "https://github.com/bmillwood/igzing" ] [ Html.text "on GitHub" ]
+            , Html.text "."
             ]
         ]

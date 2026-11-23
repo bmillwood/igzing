@@ -12,9 +12,18 @@ try {
   console.warn("couldn't read saved games", e);
 }
 
+// The theme setting styles the whole page, which is outside Elm's control, so
+// apply it from the saved settings: now, before Elm first renders, so the page
+// doesn't flash the wrong colours, and whenever they're saved.
+function applyTheme(settings) {
+  document.documentElement.dataset.theme = settings?.theme ?? "auto";
+}
+applyTheme(saved?.settings);
+
 const app = Elm.Main.init({ node: document.getElementById("app"), flags: saved });
 
 app.ports.save.subscribe((value) => {
+  applyTheme(value.settings);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch (e) {
