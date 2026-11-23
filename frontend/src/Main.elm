@@ -872,9 +872,17 @@ httpError e =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ shared Shared
+        , if model.confirmingGiveUp then
+            Sub.batch
+                [ Browser.Events.onMouseDown cancelGiveUpUnlessInside
+                , Browser.Events.onKeyDown cancelGiveUpUnlessInside
+                ]
+
+          else
+            Sub.none
         , Browser.Events.onVisibilityChange VisibilityChanged
         , Browser.Events.onKeyDown
             (D.map3
@@ -898,6 +906,27 @@ subscriptions _ =
                 |> D.andThen identity
             )
         ]
+
+
+{-| Any click or keypress outside the give-up confirmation cancels it. The
+area is marked with `data-give-up`, and its buttons are its direct children.
+-}
+cancelGiveUpUnlessInside : D.Decoder Msg
+cancelGiveUpUnlessInside =
+    D.oneOf
+        [ D.at [ "target", "dataset", "giveUp" ] D.string
+        , D.at [ "target", "parentElement", "dataset", "giveUp" ] D.string
+        ]
+        |> D.maybe
+        |> D.andThen
+            (\inside ->
+                case inside of
+                    Just _ ->
+                        D.fail "inside the confirmation"
+
+                    Nothing ->
+                        D.succeed (ConfirmingGiveUp False)
+            )
 
 
 
@@ -989,7 +1018,7 @@ viewGame model dict game =
             Html.div [ A.class "input" ]
                 [ viewHelpers model dict
                 , viewKeyboard model dict game
-                , Html.div [ A.class "give-up" ]
+                , Html.div [ A.class "give-up", A.attribute "data-give-up" "" ]
                     (if model.confirmingGiveUp then
                         [ Html.text "Give up and see the answer? "
                         , Html.button [ E.onClick GaveUp, keepFocus ] [ Html.text "Yes" ]

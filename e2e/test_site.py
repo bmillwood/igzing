@@ -95,3 +95,23 @@ def test_enter_after_clicking_a_key_submits(page):
     sync_api.expect(
         page.locator(".board .tile.correct, .board .tile.present, .board .tile.absent")
     ).to_have_count(5)
+
+
+def test_give_up_confirmation_cancels_on_anything_else(page):
+    """Clicks and keypresses anywhere cancel the confirmation via a document
+    listener, which also hears the mousedown on its own Yes button."""
+    give_up = page.get_by_role("button", name="Give up", exact=True)
+    yes = page.get_by_role("button", name="Yes", exact=True)
+
+    give_up.click()
+    page.click(".keyboard .key:has(.label:text-is('s'))")
+    sync_api.expect(yes).to_have_count(0)
+
+    give_up.click()
+    page.keyboard.press("Backspace")
+    sync_api.expect(yes).to_have_count(0)
+
+    give_up.click()
+    page.get_by_text("Give up and see the answer?").click()
+    yes.click()
+    sync_api.expect(page.get_by_text("The answer was")).to_be_visible()

@@ -28,10 +28,6 @@ maxGuesses =
 {-| A game in progress or finished. The answer and guesses are pronunciation
 keys (phoneme ids joined by spaces). The answer is stored rather than
 recomputed, so that a data update can't change a game partway through.
-
-Whether it's lost is stored rather than worked out from the number of
-guesses, because that depends on whether guesses were unlimited at the time.
-
 -}
 type alias Game =
     { answer : String
