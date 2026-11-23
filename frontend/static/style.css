@@ -136,7 +136,8 @@ main {
 /* Board */
 
 /* The board takes whatever space the keyboard leaves, and sizes its tiles to
-   fit, using container query units. */
+   fit, using container query units, but not below a readable size: on a short
+   phone screen, it scrolls instead. */
 .board {
   flex: 1;
   min-height: 9rem;
@@ -150,7 +151,7 @@ main {
   justify-content: safe center;
   overflow-y: auto;
   gap: 0.15rem;
-  --tile: min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem));
+  --tile: max(2rem, min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem)));
 }
 
 .guess {

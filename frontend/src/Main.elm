@@ -773,14 +773,24 @@ updateGame f model =
             model
 
 
-{-| Unlimited guesses can make the board scroll, and the row you're working on
-is the one you want to see. This waits for the next render, like all of
-Browser.Dom, so it scrolls to the bottom of the updated board.
+{-| The board scrolls when its rows don't fit, which a short screen or unlimited
+guesses can make happen. This puts the row you're working on (or once the game
+is over, the last guess) at the bottom of the visible part of the board, with
+the guesses before it above. It waits for the next render, like all of
+Browser.Dom, so it sees the updated board.
 -}
 scrollToLatestGuess : Cmd Msg
 scrollToLatestGuess =
-    Browser.Dom.getViewportOf "board"
-        |> Task.andThen (\board -> Browser.Dom.setViewportOf "board" 0 board.scene.height)
+    Task.map3
+        (\board viewport latest ->
+            viewport.viewport.y
+                + (latest.element.y + latest.element.height)
+                - (board.element.y + board.element.height)
+        )
+        (Browser.Dom.getElement "board")
+        (Browser.Dom.getViewportOf "board")
+        (Browser.Dom.getElement "latest-row")
+        |> Task.andThen (Browser.Dom.setViewportOf "board" 0)
         |> Task.attempt (\_ -> NoOp)
 
 
@@ -999,6 +1009,15 @@ viewGame model dict game =
         guessRows =
             List.map (viewGuess model dict answer) game.guesses
 
+        -- For scrollToLatestGuess.
+        markLatest rows =
+            case List.reverse rows of
+                latest :: earlier ->
+                    List.reverse (Html.div [ A.id "latest-row" ] [ latest ] :: earlier)
+
+                [] ->
+                    []
+
         currentRow =
             if state == Game.Playing then
                 [ viewCurrentRow model dict ]
@@ -1011,7 +1030,7 @@ viewGame model dict game =
     in
     Html.main_ []
         [ Html.div [ A.id "board", A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
-            (guessRows ++ currentRow ++ emptyRows)
+            (markLatest (guessRows ++ currentRow) ++ emptyRows)
         , Html.p [ A.class "message", A.attribute "aria-live" "polite" ]
             [ Html.text (Maybe.withDefault "" model.message) ]
         , if state == Game.Playing then
