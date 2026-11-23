@@ -141,6 +141,43 @@ init flags =
     )
 
 
+{-| An ISO date as e.g. "23rd Nov", for display. Falls back to the input if
+it doesn't parse.
+-}
+shortDate : String -> String
+shortDate iso =
+    case List.map String.toInt (String.split "-" iso) of
+        [ Just _, Just month, Just day ] ->
+            let
+                ordinal =
+                    if modBy 100 day >= 11 && modBy 100 day <= 13 then
+                        "th"
+
+                    else
+                        case modBy 10 day of
+                            1 ->
+                                "st"
+
+                            2 ->
+                                "nd"
+
+                            3 ->
+                                "rd"
+
+                            _ ->
+                                "th"
+
+                monthName =
+                    List.drop (month - 1) [ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
+                        |> List.head
+                        |> Maybe.withDefault (String.fromInt month)
+            in
+            String.fromInt day ++ ordinal ++ " " ++ monthName
+
+        _ ->
+            iso
+
+
 getToday : Cmd Msg
 getToday =
     Task.perform GotToday (Task.map2 dateString Time.here Time.now)
@@ -833,7 +870,7 @@ viewHeader model =
     Html.header []
         [ Html.h1 [] [ Html.text "Igzing" ]
         , Html.nav []
-            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map (String.dropLeft 5) model.puzzleDay))
+            [ tab Daily ("Daily " ++ Maybe.withDefault "" (Maybe.map shortDate model.puzzleDay))
             , tab Free "Random"
             ]
         , Html.div [ A.class "header-buttons" ]
