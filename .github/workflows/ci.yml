@@ -16,6 +16,7 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
       - run: nix-build -A site
       - run: nix-shell --run 'cd frontend && elm-test'
+      - run: nix-shell --run 'pytest e2e'
 
       # Pull requests hand their build to pages.yml, which deploys main along
       # with every open preview. (It skips builds from forks.)
