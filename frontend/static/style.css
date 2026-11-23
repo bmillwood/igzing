@@ -138,9 +138,18 @@ main {
 /* The board takes whatever space the keyboard leaves, and sizes its tiles to
    fit six rows, using container query units, but not below a readable size: on
    a short phone screen, it scrolls instead. */
-.board {
+/* The board, with any message over the top of it. */
+.board-area {
   flex: 1;
   min-height: 9rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.board {
+  flex: 1;
+  min-height: 0;
   container-type: size;
   display: flex;
   flex-direction: column;
@@ -269,11 +278,30 @@ main {
   }
 }
 
+/* At the top, where it covers the oldest guesses, which matter least: the
+   latest is scrolled to the bottom. It takes no space of its own, because
+   reserving some for when there's a message would cost the board a row on a
+   small phone. It's hidden when empty, but not with display: none, so that
+   screen readers still know it's there to announce. */
 .message {
-  text-align: center;
-  min-height: 1.4rem;
+  position: absolute;
+  top: 0.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 1rem);
   margin: 0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  background: var(--fg);
+  color: var(--bg);
+  text-align: center;
   font-weight: 500;
+  pointer-events: none;
+}
+
+.message:empty {
+  padding: 0;
 }
 
 .ipa {
@@ -534,21 +562,11 @@ a {
   main {
     display: grid;
     grid-template-columns: 1fr minmax(0, 30rem);
-    grid-template-rows: 1fr auto;
     column-gap: 1.5rem;
-  }
-
-  .board {
-    grid-area: 1 / 1;
-  }
-
-  .message {
-    grid-area: 2 / 1;
   }
 
   .input,
   .end {
-    grid-area: 1 / 2 / 3;
     align-self: center;
   }
 }
