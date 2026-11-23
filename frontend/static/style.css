@@ -8,6 +8,7 @@
   --correct: #4f8f63;
   --present: #c19a2e;
   --absent: #7b858b;
+  --absent-fg: #fff;
   --accent: #2f5f8a;
   --ipa: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", "DejaVu Serif", Georgia, serif;
   color-scheme: light;
@@ -21,7 +22,8 @@
     --line: #3a4248;
     --key: #2c343a;
     --key-fg: #e8e6e1;
-    --absent: #4a5257;
+    --absent: #1d2327;
+    --absent-fg: #7d868b;
     --accent: #7fb0dd;
     color-scheme: dark;
   }
@@ -194,6 +196,7 @@ main {
 
 .tile.absent {
   background: var(--absent);
+  color: var(--absent-fg);
 }
 
 .tile.mini {
@@ -382,6 +385,7 @@ main {
 
 .key.absent {
   background: var(--absent);
+  color: var(--absent-fg);
 }
 
 /* End of game */
