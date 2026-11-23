@@ -1203,8 +1203,26 @@ viewEnd model dict game state =
 
 viewOverlay : String -> List (Html Msg) -> Html Msg
 viewOverlay title content =
-    Html.div [ A.class "overlay", E.onClick (SetPanel Nothing) ]
-        [ Html.div [ A.class "panel", E.stopPropagationOn "click" (D.succeed ( NoOp, True )) ]
+    let
+        -- Close on clicks on the backdrop, but not ones that bubble up from
+        -- the panel. Don't stop propagation in the panel instead: Elm
+        -- re-renders synchronously for such handlers, resetting checkboxes'
+        -- `checked` to the old model's value before their change event.
+        onBackdropClick =
+            E.on "click"
+                (D.at [ "target", "className" ] D.string
+                    |> D.andThen
+                        (\class ->
+                            if class == "overlay" then
+                                D.succeed (SetPanel Nothing)
+
+                            else
+                                D.fail "click inside the panel"
+                        )
+                )
+    in
+    Html.div [ A.class "overlay", onBackdropClick ]
+        [ Html.div [ A.class "panel" ]
             (Html.div [ A.class "panel-header" ]
                 [ Html.h2 [] [ Html.text title ]
                 , Html.button [ A.class "icon", E.onClick (SetPanel Nothing), A.title "Close" ] [ Html.text "✕" ]
