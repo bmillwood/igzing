@@ -5,6 +5,7 @@ module Game exposing
     , dailyIndex
     , decoder
     , encode
+    , hints
     , keyMarks
     , maxGuesses
     , score
@@ -137,6 +138,105 @@ keyMarks toPhonemes game =
         )
         Dict.empty
         game.guesses
+
+
+{-| What the guesses so far show about where a phoneme could go in the
+next guess, square by square, so that the square is:
+
+  - `Just Correct` where the phoneme is known to be,
+  - `Just Present` where it's known not to be, and some copy of it hasn't been
+    placed yet,
+  - `Just Absent` where it's known not to be, and no copy is known to be left
+    over to place,
+  - `Nothing` where it might be.
+
+A square is known not to hold the phoneme if the phoneme has been tried there,
+if another phoneme is known to be there, or if every copy in the answer is
+accounted for already.
+
+-}
+hints : (String -> List String) -> Game -> String -> List (Maybe Mark)
+hints toPhonemes game phoneme =
+    let
+        answer =
+            toPhonemes game.answer
+
+        -- Each guess's marks for this phoneme, by square.
+        tries =
+            List.map
+                (\guess ->
+                    let
+                        guessed =
+                            toPhonemes guess
+                    in
+                    List.map3 (\square p mark -> ( square, p, mark ))
+                        (List.range 0 (List.length guessed - 1))
+                        guessed
+                        (score answer guessed)
+                )
+                game.guesses
+
+        triesOfPhoneme =
+            List.map (List.filter (\( _, p, _ ) -> p == phoneme)) tries
+
+        -- Squares known to hold some phoneme, which might be this one.
+        knownSquares =
+            List.concat tries
+                |> List.filterMap
+                    (\( square, p, mark ) ->
+                        if mark == Correct then
+                            Just ( square, p )
+
+                        else
+                            Nothing
+                    )
+                |> Dict.fromList
+
+        placed =
+            Dict.values knownSquares |> List.filter ((==) phoneme) |> List.length
+
+        -- A guess with n non-Absent copies shows the answer has at least n,
+        -- and if it also has an Absent copy, exactly n.
+        found try =
+            List.length (List.filter (\( _, _, mark ) -> mark /= Absent) try)
+
+        atLeast =
+            List.maximum (List.map found triesOfPhoneme) |> Maybe.withDefault 0
+
+        copiesLeftOver =
+            atLeast > placed
+
+        allAccountedFor =
+            List.any (List.any (\( _, _, mark ) -> mark == Absent)) triesOfPhoneme
+                && not copiesLeftOver
+
+        triedAt square =
+            List.any (List.any (\( s, _, _ ) -> s == square)) triesOfPhoneme
+
+        hint square =
+            case Dict.get square knownSquares of
+                Just p ->
+                    if p == phoneme then
+                        Just Correct
+
+                    else
+                        Just notHere
+
+                Nothing ->
+                    if triedAt square || allAccountedFor then
+                        Just notHere
+
+                    else
+                        Nothing
+
+        notHere =
+            if copiesLeftOver then
+                Present
+
+            else
+                Absent
+    in
+    List.map hint (List.range 0 (List.length answer - 1))
 
 
 {-| Which answer to use on a given day, from a 32-bit FNV-1a hash of the date

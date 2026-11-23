@@ -114,6 +114,9 @@ type alias Model =
 
     -- Bumped to restart the shake animation on an invalid guess
     , shakes : Int
+
+    -- The phoneme key under the mouse pointer, if any
+    , hovered : Maybe String
     }
 
 
@@ -150,6 +153,7 @@ init flags =
             , message = Nothing
             , panel = Nothing
             , shakes = 0
+            , hovered = Nothing
             }
 
         ( loaded, loadCmd ) =
@@ -317,7 +321,13 @@ currentGame model =
 not.
 -}
 ensureGame : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-ensureGame ( model, cmd ) =
+ensureGame ( switched, cmd ) =
+    let
+        -- A different game, or a new one, means a new keyboard, whose keys
+        -- won't see the pointer leave if it was over a key of the old one.
+        model =
+            { switched | hovered = Nothing }
+    in
     case ( currentDictionary model, gameKey model ) of
         ( Just dict, Just key ) ->
             let
@@ -516,6 +526,7 @@ type Msg
     | GotToday String
     | NewFreeGame String Int
     | PressedPhoneme String
+    | HoveredKey (Maybe String)
     | PressedBackspace
     | PressedEnter
     | TypedText String
@@ -580,6 +591,9 @@ update msg model =
 
             else
                 ( model, Cmd.none )
+
+        HoveredKey hovered ->
+            ( { model | hovered = hovered }, Cmd.none )
 
         PressedBackspace ->
             if model.text /= "" then
@@ -931,7 +945,7 @@ viewGame model dict game =
 
         currentRow =
             if state == Game.Playing then
-                [ viewCurrentRow model dict ]
+                [ viewCurrentRow model dict game ]
 
             else
                 []
@@ -1018,14 +1032,29 @@ viewSpellings spellings =
         ]
 
 
-viewCurrentRow : Model -> Dictionary -> Html Msg
-viewCurrentRow model dict =
+viewCurrentRow : Model -> Dictionary -> Game -> Html Msg
+viewCurrentRow model dict game =
     let
-        filled =
-            List.map (viewTile dict "filled") model.row
+        squares =
+            List.map Just model.row ++ List.repeat (model.settings.length - List.length model.row) Nothing
 
-        blanks =
-            List.repeat (model.settings.length - List.length model.row) (Html.div [ A.class "tile" ] [])
+        hints =
+            case model.hovered of
+                Just phoneme ->
+                    Game.hints Dictionary.toPhonemes game phoneme
+
+                Nothing ->
+                    List.repeat model.settings.length Nothing
+
+        viewSquare square hint =
+            Html.div
+                [ A.classList
+                    [ ( "tile", True )
+                    , ( "filled", square /= Nothing )
+                    , ( "hint-" ++ Maybe.withDefault "" (Maybe.map markClass hint), hint /= Nothing )
+                    ]
+                ]
+                [ Html.text (Maybe.withDefault "" (Maybe.map (Dictionary.label dict) square)) ]
 
         key =
             String.join " " model.row
@@ -1044,7 +1073,7 @@ viewCurrentRow model dict =
         [ ( String.fromInt model.shakes
           , Html.div
                 [ A.classList [ ( "row", True ), ( "shake", model.shakes > 0 ) ] ]
-                (filled ++ blanks)
+                (List.map2 viewSquare squares hints)
           )
         , ( "spellings", preview )
         ]
@@ -1186,9 +1215,11 @@ viewKeyboard model dict game =
                             ""
             in
             Html.button
-                [ A.class ("key" ++ markClasses)
+                [ A.classList [ ( "key" ++ markClasses, True ), ( "in-row", List.member id model.row ) ]
                 , E.onClick (PressedPhoneme id)
                 , keepFocus
+                , onHoverStart (HoveredKey (Just id))
+                , E.on "pointerleave" (D.succeed (HoveredKey Nothing))
                 , A.title (before ++ highlighted ++ after)
                 ]
                 [ Html.span [ A.class "label" ] [ Html.text (Dictionary.label dict id) ]
@@ -1202,6 +1233,24 @@ viewKeyboard model dict game =
     in
     Html.div [ A.classList [ ( "keyboard", True ), ( "with-examples", model.settings.showExamples ) ] ]
         (List.map (\row -> Html.div [ A.class "keyrow" ] (List.map viewKey row)) dict.accent.keyboard)
+
+
+{-| When a mouse or pen moves over an element. Touches fire this too, but only
+while the finger's down, so hints would just flash on every tap.
+-}
+onHoverStart : Msg -> Html.Attribute Msg
+onHoverStart msg =
+    E.on "pointerenter"
+        (D.field "pointerType" D.string
+            |> D.andThen
+                (\pointerType ->
+                    if pointerType == "touch" then
+                        D.fail "a touch"
+
+                    else
+                        D.succeed msg
+                )
+        )
 
 
 viewEnd : Model -> Dictionary -> Game -> Game.Status -> Html Msg
