@@ -197,6 +197,21 @@ main {
   color: var(--absent-fg);
 }
 
+/* Hovering over a key hints, on the row being entered, where its phoneme could
+   go: faintly the colour it would score where that's known, and darker where
+   it can't go at all. */
+.tile.hint-correct {
+  background: color-mix(in srgb, var(--correct) 30%, transparent);
+}
+
+.tile.hint-present {
+  background: color-mix(in srgb, var(--present) 30%, transparent);
+}
+
+.tile.hint-absent {
+  background: light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.4));
+}
+
 .tile.mini {
   --tile: 1.8rem;
   display: inline-flex;
@@ -384,6 +399,13 @@ main {
 .key.absent {
   background: var(--absent);
   color: var(--absent-fg);
+}
+
+/* Keys for the phonemes in the row being entered, so you can see where they
+   are on the keyboard. */
+.key.in-row {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 /* End of game */

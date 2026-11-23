@@ -24,6 +24,24 @@ suite =
                     Game.score [ "t", "ɪ", "t", "ə", "l" ] [ "ə", "t", "l", "ɪ", "t" ]
                         |> Expect.equal [ Present, Present, Present, Present, Present ]
             ]
+        , describe "hints"
+            -- Like score, these are about counting copies of a phoneme
+            -- across guesses, which is easy to get subtly wrong.
+            [ test "once every copy is placed, the phoneme can't go anywhere else" <|
+                \_ ->
+                    Game.hints String.words { answer = "k æ t", guesses = [ "t æ t" ] } "t"
+                        |> Expect.equal [ Just Absent, Just Absent, Just Correct ]
+            , test "a copy known to be left over marks where it isn't, leaving where it could be" <|
+                \_ ->
+                    Game.hints String.words { answer = "s ɪ t", guesses = [ "t t ɪ" ] } "t"
+                        |> Expect.equal [ Just Present, Just Present, Nothing ]
+            , test "a square that's been tried is ruled out even while the count is unknown" <|
+                \_ ->
+                    -- The second guess's p is Present only because of the
+                    -- copy the first guess already placed.
+                    Game.hints String.words { answer = "t ɪ p", guesses = [ "ʌ ʌ p", "p ʌ ʌ" ] } "p"
+                        |> Expect.equal [ Just Absent, Nothing, Just Correct ]
+            ]
         , test "dailyIndex is 32-bit FNV-1a, so changing it would change everyone's daily answer" <|
             \_ ->
                 -- Reference value from Python:
