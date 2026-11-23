@@ -47,18 +47,6 @@ app.ports.share.subscribe(async (text) => {
   }
 });
 
-// Elm asks for its next render's animation frame before sending this, so this
-// frame comes after it.
-app.ports.scrollBoard.subscribe(() =>
-  requestAnimationFrame(() => {
-    const board = document.getElementById("board");
-    const latest = document.getElementById("latest-row");
-    if (!board || !latest) return;
-    board.scrollTop +=
-      latest.getBoundingClientRect().bottom - board.getBoundingClientRect().bottom;
-  }),
-);
-
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch((e) => console.warn("no offline support", e));
   // A new build's service worker takes over open pages as soon as it's

@@ -28,9 +28,6 @@ port share : String -> Cmd msg
 port shared : (String -> msg) -> Sub msg
 
 
-port scrollBoard : () -> Cmd msg
-
-
 main : Program D.Value Model Msg
 main =
     Browser.element
@@ -327,7 +324,11 @@ not, and show its latest guess.
 -}
 ensureGame : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 ensureGame ( model, cmd ) =
-    startGameIfNeeded ( model, Cmd.batch [ cmd, scrollToLatestGuess ] )
+    let
+        ( started, startCmd ) =
+            startGameIfNeeded ( model, cmd )
+    in
+    ( started, Cmd.batch [ startCmd, scrollToLatestGuess started ] )
 
 
 startGameIfNeeded : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
@@ -753,9 +754,11 @@ submit model =
                 ( { model | message = Just "That's not a word I know", shakes = model.shakes + 1 }, Cmd.none )
 
             else
-                ( clearRow (updateGame (Game.addGuess { unlimited = model.settings.unlimitedGuesses } guess) model)
-                , scrollToLatestGuess
-                )
+                let
+                    guessed =
+                        clearRow (updateGame (Game.addGuess { unlimited = model.settings.unlimitedGuesses } guess) model)
+                in
+                ( guessed, scrollToLatestGuess guessed )
 
         _ ->
             ( model, Cmd.none )
@@ -779,16 +782,46 @@ updateGame f model =
 {-| The board scrolls when its rows don't fit, which a short screen or unlimited
 guesses can make happen. This puts the row you're working on (or once the game
 is over, the last guess) at the bottom of the visible part of the board, with
-the guesses before it above. main.js does it after the next render.
+the guesses before it above. Like all of Browser.Dom, it waits for the next
+render, so it sees the updated board.
 
-It's a port because Browser.Dom would read the scroll position and the row's
-position on different animation frames, so that when two of these overlap,
-as when guesses come quickly, one can scroll by a stale amount.
+It works out where that row is from the board's height alone, which relies on
+every row being the same height, with the space between them inside the rows.
+Browser.Dom reads each thing on its own animation frame, so reading the row's
+position as well could mix up positions from before and after another scroll,
+when guesses come quickly.
 
 -}
-scrollToLatestGuess : Cmd Msg
-scrollToLatestGuess =
-    scrollBoard ()
+scrollToLatestGuess : Model -> Cmd Msg
+scrollToLatestGuess model =
+    case currentGame model of
+        Just game ->
+            let
+                -- As in viewGame: guesses, then the row being entered, then
+                -- empty rows up to six.
+                latest =
+                    List.length game.guesses
+                        + (if Game.status game == Game.Playing then
+                            1
+
+                           else
+                            0
+                          )
+
+                rows =
+                    max Game.maxGuesses latest
+            in
+            Browser.Dom.getViewportOf "board"
+                |> Task.andThen
+                    (\board ->
+                        Browser.Dom.setViewportOf "board"
+                            0
+                            (board.scene.height * toFloat latest / toFloat rows - board.viewport.height)
+                    )
+                |> Task.attempt (\_ -> NoOp)
+
+        Nothing ->
+            Cmd.none
 
 
 spellingMessage : Dictionary -> Model -> String
@@ -1006,15 +1039,6 @@ viewGame model dict game =
         guessRows =
             List.map (viewGuess model dict answer) game.guesses
 
-        -- For scrollToLatestGuess.
-        markLatest rows =
-            case List.reverse rows of
-                latest :: earlier ->
-                    List.reverse (Html.div [ A.id "latest-row" ] [ latest ] :: earlier)
-
-                [] ->
-                    []
-
         currentRow =
             if state == Game.Playing then
                 [ viewCurrentRow model dict ]
@@ -1027,7 +1051,7 @@ viewGame model dict game =
     in
     Html.main_ []
         [ Html.div [ A.id "board", A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
-            (markLatest (guessRows ++ currentRow) ++ emptyRows)
+            (guessRows ++ currentRow ++ emptyRows)
         , Html.p [ A.class "message", A.attribute "aria-live" "polite" ]
             [ Html.text (Maybe.withDefault "" model.message) ]
         , if state == Game.Playing then
@@ -1089,7 +1113,9 @@ viewGuess model dict answer guess =
             viewSpellings (Dictionary.spellingsOf dict guess)
 
           else
-            Html.text ""
+            -- Keeping the space makes every row the same height, for
+            -- scrollToLatestGuess.
+            Html.div [ A.class "spellings" ] []
         ]
 
 

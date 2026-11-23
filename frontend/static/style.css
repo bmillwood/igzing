@@ -150,14 +150,15 @@ main {
      as well, where it can't. */
   justify-content: safe center;
   overflow-y: auto;
-  gap: 0.15rem;
   --tile: max(2rem, min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem)));
 }
 
+/* The space between rows is inside them, for scrollToLatestGuess in Main.elm. */
 .guess {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 0.075rem 0;
 }
 
 .row {
