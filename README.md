@@ -114,6 +114,11 @@ only show up in a real browser. Run them from the repository root with
 `pytest e2e`, which tests `result/` from `nix-build -A site` by default, or
 another build with `IGZING_SITE=../_build/site pytest e2e` and the like.
 
+`e2e/screenshots.py` screenshots a build in a range of states and window
+sizes, and optionally another build to compare with, and makes a page to look
+through them on. Every pull request's preview has one comparing it with its
+base, at `pr/N/screenshots/`.
+
 After changing Elm dependencies, regenerate the Nix lock files:
 `elm2nix convert > elm-srcs.nix && elm2nix snapshot`.
 
