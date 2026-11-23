@@ -1,32 +1,30 @@
 :root {
-  --bg: #f6f4ef;
-  --fg: #1f2a33;
-  --muted: #6b7378;
-  --line: #d4d0c6;
-  --key: #e4e0d6;
-  --key-fg: #1f2a33;
+  /* Each colour is light-dark(light, dark), resolved by color-scheme: the
+     system's preference by default, or the theme chosen in the settings,
+     which main.js puts in data-theme. */
+  color-scheme: light dark;
+  --bg: light-dark(#f6f4ef, #161b1f);
+  --fg: light-dark(#1f2a33, #e8e6e1);
+  --muted: light-dark(#6b7378, #9aa2a7);
+  --line: light-dark(#d4d0c6, #3a4248);
+  --key: light-dark(#e4e0d6, #2c343a);
+  --key-fg: light-dark(#1f2a33, #e8e6e1);
   --correct: #4f8f63;
   --present: #c19a2e;
-  --absent: #7b858b;
-  --absent-fg: #fff;
-  --accent: #2f5f8a;
+  /* Absent keys should recede, which in light mode means darker, as is
+     traditional, but in dark mode means closer to the background. */
+  --absent: light-dark(#7b858b, #1d2327);
+  --absent-fg: light-dark(#fff, #7d868b);
+  --accent: light-dark(#2f5f8a, #7fb0dd);
   --ipa: "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Serif", "DejaVu Serif", Georgia, serif;
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161b1f;
-    --fg: #e8e6e1;
-    --muted: #9aa2a7;
-    --line: #3a4248;
-    --key: #2c343a;
-    --key-fg: #e8e6e1;
-    --absent: #1d2327;
-    --absent-fg: #7d868b;
-    --accent: #7fb0dd;
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {

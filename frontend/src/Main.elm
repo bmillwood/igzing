@@ -48,7 +48,29 @@ type alias Settings =
     , showSpellings : Bool
     , showCompletions : Bool
     , showExamples : Bool
+    , theme : Theme
     }
+
+
+type Theme
+    = AutoTheme
+    | LightTheme
+    | DarkTheme
+
+
+{-| As saved, and as main.js sets it on the root element for the stylesheet.
+-}
+themeToString : Theme -> String
+themeToString theme =
+    case theme of
+        AutoTheme ->
+            "auto"
+
+        LightTheme ->
+            "light"
+
+        DarkTheme ->
+            "dark"
 
 
 type Mode
@@ -102,6 +124,7 @@ defaultSettings =
     , showSpellings = True
     , showCompletions = False
     , showExamples = True
+    , theme = AutoTheme
     }
 
 
@@ -383,12 +406,25 @@ savedDecoder =
             D.oneOf [ D.field name dec, D.succeed default ]
 
         settingsDecoder =
-            D.map5 Settings
+            D.map6 Settings
                 (field "accent" D.string defaultSettings.accent)
                 (field "length" D.int defaultSettings.length)
                 (field "showSpellings" D.bool defaultSettings.showSpellings)
                 (field "showCompletions" D.bool defaultSettings.showCompletions)
                 (field "showExamples" D.bool defaultSettings.showExamples)
+                (field "theme" themeDecoder defaultSettings.theme)
+
+        themeDecoder =
+            D.string
+                |> D.andThen
+                    (\string ->
+                        case List.filter (\theme -> themeToString theme == string) [ AutoTheme, LightTheme, DarkTheme ] of
+                            theme :: _ ->
+                                D.succeed theme
+
+                            [] ->
+                                D.fail ("unknown theme " ++ string)
+                    )
 
         -- Skip any game that doesn't decode, rather than losing them all.
         gamesDecoder =
@@ -432,6 +468,7 @@ encodeSaved model =
                 , ( "showSpellings", JE.bool model.settings.showSpellings )
                 , ( "showCompletions", JE.bool model.settings.showCompletions )
                 , ( "showExamples", JE.bool model.settings.showExamples )
+                , ( "theme", JE.string (themeToString model.settings.theme) )
                 ]
           )
         , ( "mode"
@@ -1276,6 +1313,18 @@ viewSettings model =
         , checkbox "Show spellings of guesses" s.showSpellings (\b -> SetSettings { s | showSpellings = b })
         , checkbox "Suggest words as I type" s.showCompletions (\b -> SetSettings { s | showCompletions = b })
         , checkbox "Show example words on keys" s.showExamples (\b -> SetSettings { s | showExamples = b })
+        , Html.div [ A.class "setting" ]
+            (Html.text "Theme "
+                :: List.map
+                    (\( theme, label ) ->
+                        Html.button
+                            [ A.classList [ ( "choice", True ), ( "active", s.theme == theme ) ]
+                            , E.onClick (SetSettings { s | theme = theme })
+                            ]
+                            [ Html.text label ]
+                    )
+                    [ ( AutoTheme, "Auto" ), ( LightTheme, "Light" ), ( DarkTheme, "Dark" ) ]
+            )
         , Html.p [ A.class "small" ]
             [ Html.text "Daily and random games are kept separately, so you can switch between them at any time." ]
         ]
