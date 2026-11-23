@@ -93,8 +93,9 @@ nav {
 
 .tab.active,
 .choice.active {
-  background: var(--fg);
-  color: var(--bg);
+  background: var(--key);
+  color: var(--key-fg);
+  box-shadow: 0 0.1rem 0.4rem rgb(0 0 0 / 0.3);
   border-color: var(--fg);
 }
 
@@ -160,25 +161,46 @@ main {
   overflow-y: auto;
 }
 
-/* The space between rows is inside them, for scrollToLatestGuess in Main.elm. */
+/* The space between rows is inside them, for scrollToLatestGuess in Main.elm.
+   Where the spellings are below the tiles, they already keep the rows apart. */
 .guess {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* More than the gap between tiles, so that the board reads as six rows and
-     not a grid. */
-  --row-padding: 0.25rem;
+  --row-padding: 0.075rem;
   padding: var(--row-padding) 0;
   --tile: max(2rem, min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc(100cqh / 6 - 1.1rem - 2 * var(--row-padding))));
 }
 
-/* Height is usually what's scarce, so where there's room for a column either
-   side of the tiles, put each row's spellings beside it rather than below. */
-@container (min-width: 20rem) {
+/* Height is usually what's scarce, so where there's room, put each row's
+   spellings beside it rather than below: in a column to the right, and where
+   there's room for a column either side, there, so that the tiles are
+   centred. */
+@container (min-width: 17rem) {
   .guess {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     column-gap: 0.5rem;
+    /* More than the gap between tiles, so that the board reads as six rows
+       and not a grid. */
+    --row-padding: 0.25rem;
+    --tile: max(2rem, min(3.4rem, calc((100cqw - 5.5rem) / var(--length) - 0.3rem), calc(100cqh / 6 - 2 * var(--row-padding))));
+  }
+
+  /* A tile is tall enough for two lines, which the column often needs. */
+  .guess > .spellings {
+    height: auto;
+    line-height: 1.2;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
+@container (min-width: 20rem) {
+  .guess {
+    grid-template-columns: 1fr auto 1fr;
     --tile: max(2rem, min(3.4rem, calc((100cqw - 2 * 5rem) / var(--length) - 0.3rem), calc(100cqh / 6 - 2 * var(--row-padding))));
   }
 
@@ -186,15 +208,8 @@ main {
     grid-column: 2;
   }
 
-  /* A tile is tall enough for two lines, which the column often needs. */
   .guess > .spellings {
     grid-column: 3;
-    height: auto;
-    line-height: 1.2;
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
   }
 }
 
@@ -293,8 +308,9 @@ main {
   margin: 0;
   padding: 0.4rem 0.8rem;
   border-radius: 0.4rem;
-  background: var(--fg);
-  color: var(--bg);
+  background: var(--key);
+  color: var(--key-fg);
+  box-shadow: 0 0.1rem 0.4rem rgb(0 0 0 / 0.3);
   text-align: center;
   font-weight: 500;
   pointer-events: none;
