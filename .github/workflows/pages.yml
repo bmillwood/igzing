@@ -14,6 +14,9 @@ on:
     paths:
       - .github/workflows/pages.yml
 
+env:
+  nixpkgs_version: 2786a2a72088ecf32aea5b3ec52099e6a7cff78f # renovate: datasource=git-refs depName=NixOS/nixpkgs packageName=https://github.com/NixOS/nixpkgs currentValue=nixos-unstable
+
 # Listing the artifacts is part of the critical section, so the group covers
 # the whole workflow and not just the deployment: a run that listed before a
 # newer one uploaded would otherwise be able to deploy a site missing that
@@ -44,7 +47,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
+          nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/${{ env.nixpkgs_version }}.tar.gz
       - run: nix-build -A site
       - run: cp --no-preserve=mode --recursive --dereference result site
 
