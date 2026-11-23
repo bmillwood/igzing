@@ -39,6 +39,8 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
+    outputs:
+      sha: ${{ steps.previews.outputs.sha }}
 
     steps:
       # A workflow_run checks out the default branch. Building it here rather
@@ -51,9 +53,13 @@ jobs:
       - run: nix-build -A site
       - run: cp --no-preserve=mode --recursive --dereference result site
 
-      - run: |
+      # Each pull request's site, and its screenshots from ci.yml inside it.
+      # For the pull request that triggered this run, also note which commit's
+      # build is deployed, for the comment that the deploy job posts.
+      - id: previews
+        run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts" \
-            --jq '[.artifacts[] | select(.expired | not) | select(.name | startswith("site-pr-"))]' \
+            --jq '[.artifacts[] | select(.expired | not) | select(.name | test("^(site|screenshots)-pr-"))]' \
           | jq --slurp --raw-output '
               add
               # A preview shares its origin with the real site, and with
@@ -65,20 +71,30 @@ jobs:
               # Several runs of the same pull request upload the same artifact
               # name; only the newest of them is the current preview.
               | group_by(.name) | map(max_by(.created_at))
-              | .[] | "\(.name | ltrimstr("site-pr-"))\t\(.archive_download_url)"
+              | .[] | (.name | capture("^(?<kind>[a-z]+)-pr-(?<number>[0-9]+)$")) as $name
+              | "\($name.kind)\t\($name.number)\t\(.workflow_run.head_sha)\t\(.archive_download_url)"
             ' \
-          | while IFS=$'\t' read -r number url; do
+          | while IFS=$'\t' read -r kind number sha url; do
               # curl declines to pass the Authorization header on to the
               # storage host it gets redirected to, which is what we want.
               curl --silent --show-error --fail --location \
                 --header "Authorization: Bearer $GH_TOKEN" \
                 --output preview.zip "$url"
-              mkdir -p "site/pr/$number"
-              unzip -q preview.zip -d "site/pr/$number"
-              echo "unpacked pr/$number"
+              if [[ $kind == site ]]; then
+                dir=site/pr/$number
+                if [[ $number == "$TRIGGERED_BY" ]]; then
+                  echo "sha=$sha" >> "$GITHUB_OUTPUT"
+                fi
+              else
+                dir=site/pr/$number/screenshots
+              fi
+              mkdir -p "$dir"
+              unzip -q preview.zip -d "$dir"
+              echo "unpacked $dir"
             done
         env:
           GH_TOKEN: ${{ github.token }}
+          TRIGGERED_BY: ${{ github.event.workflow_run.pull_requests[0].number }}
 
       # A way to find the previews.
       - run: |
@@ -91,6 +107,8 @@ jobs:
           if compgen -G 'site/pr/*/' > /dev/null; then
             echo '<ul>'
             for dir in site/pr/*/; do
+              # Screenshots without a site, from a run whose tests failed.
+              [[ -e $dir/index.html ]] || continue
               number=$(basename "$dir")
               # A pull request title is written by whoever opened the pull
               # request, so it reaches this page through @html and not
@@ -124,3 +142,27 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
+
+  # Says that the preview is live once it is, on the pull request whose CI run
+  # triggered this. The last such comment is deleted first, so that there's
+  # only ever one, but each deploy still notifies.
+  comment:
+    needs: [assemble, deploy]
+    if: needs.assemble.outputs.sha
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- preview -->"))) | .id' \
+          | while read -r id; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"
+            done
+          url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)pr/$NUMBER/
+          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "<!-- preview -->
+          Preview of $SHA is live: $url ([screenshots](${url}screenshots/))"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          SHA: ${{ needs.assemble.outputs.sha }}
