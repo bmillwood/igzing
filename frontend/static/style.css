@@ -144,7 +144,11 @@ main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* Safe, so that a board with more than six rows, from unlimited guesses,
+     overflows at the bottom, where it can be scrolled to, and not at the top
+     as well, where it can't. */
+  justify-content: safe center;
+  overflow-y: auto;
   gap: 0.15rem;
   --tile: min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem));
 }
@@ -384,6 +388,16 @@ main {
 .key.absent {
   background: var(--absent);
   color: var(--absent-fg);
+}
+
+.give-up {
+  align-self: center;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  padding: 0;
 }
 
 /* End of game */

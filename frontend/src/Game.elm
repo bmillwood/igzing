@@ -2,12 +2,15 @@ module Game exposing
     ( Game
     , Mark(..)
     , Status(..)
+    , addGuess
     , dailyIndex
     , decoder
     , encode
+    , giveUp
     , keyMarks
     , maxGuesses
     , score
+    , start
     , status
     )
 
@@ -25,11 +28,41 @@ maxGuesses =
 {-| A game in progress or finished. The answer and guesses are pronunciation
 keys (phoneme ids joined by spaces). The answer is stored rather than
 recomputed, so that a data update can't change a game partway through.
+
+Whether it's lost is stored rather than worked out from the number of
+guesses, because that depends on whether guesses were unlimited at the time.
+
 -}
 type alias Game =
     { answer : String
     , guesses : List String
+    , lost : Bool
     }
+
+
+start : String -> Game
+start answer =
+    { answer = answer, guesses = [], lost = False }
+
+
+{-| Add a guess, which loses the game if it's a wrong one that uses up the
+guesses, unless they're unlimited.
+-}
+addGuess : { unlimited : Bool } -> String -> Game -> Game
+addGuess { unlimited } guessed game =
+    let
+        guesses =
+            game.guesses ++ [ guessed ]
+    in
+    { game
+        | guesses = guesses
+        , lost = not unlimited && guessed /= game.answer && List.length guesses >= maxGuesses
+    }
+
+
+giveUp : Game -> Game
+giveUp game =
+    { game | lost = True }
 
 
 type Mark
@@ -49,7 +82,7 @@ status game =
     if List.member game.answer game.guesses then
         Won
 
-    else if List.length game.guesses >= maxGuesses then
+    else if game.lost then
         Lost
 
     else
@@ -169,11 +202,23 @@ encode game =
     E.object
         [ ( "answer", E.string game.answer )
         , ( "guesses", E.list E.string game.guesses )
+        , ( "lost", E.bool game.lost )
         ]
 
 
 decoder : D.Decoder Game
 decoder =
-    D.map2 Game
+    D.map2 Tuple.pair
         (D.field "answer" D.string)
         (D.field "guesses" (D.list D.string))
+        |> D.andThen
+            (\( answer, guesses ) ->
+                D.map (Game answer guesses)
+                    (D.oneOf
+                        [ D.field "lost" D.bool
+
+                        -- Saved before guesses could be unlimited
+                        , D.succeed (not (List.member answer guesses) && List.length guesses >= maxGuesses)
+                        ]
+                    )
+            )

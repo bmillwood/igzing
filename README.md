@@ -15,6 +15,7 @@ we could find, according to a trigram model of the game's own dictionary.
 - **Spellings** appear under each guess, and **suggestions** as you type,
   whether you're typing letters or sounds. Each can be turned off in settings.
 - **4, 5 or 6 sounds** per word.
+- **Unlimited guesses**, if you'd rather keep going until you get it.
 
 ## Layout
 
