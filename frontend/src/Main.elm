@@ -28,6 +28,9 @@ port share : String -> Cmd msg
 port shared : (String -> msg) -> Sub msg
 
 
+port scrollBoard : () -> Cmd msg
+
+
 main : Program D.Value Model Msg
 main =
     Browser.element
@@ -776,22 +779,16 @@ updateGame f model =
 {-| The board scrolls when its rows don't fit, which a short screen or unlimited
 guesses can make happen. This puts the row you're working on (or once the game
 is over, the last guess) at the bottom of the visible part of the board, with
-the guesses before it above. It waits for the next render, like all of
-Browser.Dom, so it sees the updated board.
+the guesses before it above. main.js does it after the next render.
+
+It's a port because Browser.Dom would read the scroll position and the row's
+position on different animation frames, so that when two of these overlap,
+as when guesses come quickly, one can scroll by a stale amount.
+
 -}
 scrollToLatestGuess : Cmd Msg
 scrollToLatestGuess =
-    Task.map3
-        (\board viewport latest ->
-            viewport.viewport.y
-                + (latest.element.y + latest.element.height)
-                - (board.element.y + board.element.height)
-        )
-        (Browser.Dom.getElement "board")
-        (Browser.Dom.getViewportOf "board")
-        (Browser.Dom.getElement "latest-row")
-        |> Task.andThen (Browser.Dom.setViewportOf "board" 0)
-        |> Task.attempt (\_ -> NoOp)
+    scrollBoard ()
 
 
 spellingMessage : Dictionary -> Model -> String
