@@ -2,12 +2,15 @@ module Game exposing
     ( Game
     , Mark(..)
     , Status(..)
+    , addGuess
     , dailyIndex
     , decoder
     , encode
+    , giveUp
     , keyMarks
     , maxGuesses
     , score
+    , start
     , status
     )
 
@@ -29,7 +32,35 @@ recomputed, so that a data update can't change a game partway through.
 type alias Game =
     { answer : String
     , guesses : List String
+    , lost : Bool
     }
+
+
+start : String -> Game
+start answer =
+    { answer = answer, guesses = [], lost = False }
+
+
+{-| Add a guess, which loses the game if it's a wrong sixth guess, unless
+guesses are unlimited. Only the sixth: a game that's already gone past six,
+while guesses were unlimited, carries on as if they still were, so that
+turning them off can't end it.
+-}
+addGuess : { unlimited : Bool } -> String -> Game -> Game
+addGuess { unlimited } guessed game =
+    let
+        guesses =
+            game.guesses ++ [ guessed ]
+    in
+    { game
+        | guesses = guesses
+        , lost = not unlimited && guessed /= game.answer && List.length guesses == maxGuesses
+    }
+
+
+giveUp : Game -> Game
+giveUp game =
+    { game | lost = True }
 
 
 type Mark
@@ -49,7 +80,7 @@ status game =
     if List.member game.answer game.guesses then
         Won
 
-    else if List.length game.guesses >= maxGuesses then
+    else if game.lost then
         Lost
 
     else
@@ -169,11 +200,23 @@ encode game =
     E.object
         [ ( "answer", E.string game.answer )
         , ( "guesses", E.list E.string game.guesses )
+        , ( "lost", E.bool game.lost )
         ]
 
 
 decoder : D.Decoder Game
 decoder =
-    D.map2 Game
+    D.map2 Tuple.pair
         (D.field "answer" D.string)
         (D.field "guesses" (D.list D.string))
+        |> D.andThen
+            (\( answer, guesses ) ->
+                D.map (Game answer guesses)
+                    (D.oneOf
+                        [ D.field "lost" D.bool
+
+                        -- Saved before guesses could be unlimited
+                        , D.succeed (not (List.member answer guesses) && List.length guesses >= maxGuesses)
+                        ]
+                    )
+            )

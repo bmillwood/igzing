@@ -49,6 +49,7 @@ type alias Settings =
     , showCompletions : Bool
     , showExamples : Bool
     , theme : Theme
+    , unlimitedGuesses : Bool
     }
 
 
@@ -114,6 +115,9 @@ type alias Model =
 
     -- Bumped to restart the shake animation on an invalid guess
     , shakes : Int
+
+    -- Whether "Give up" has been pressed, and is waiting to be confirmed
+    , confirmingGiveUp : Bool
     }
 
 
@@ -125,6 +129,7 @@ defaultSettings =
     , showCompletions = False
     , showExamples = True
     , theme = AutoTheme
+    , unlimitedGuesses = False
     }
 
 
@@ -150,6 +155,7 @@ init flags =
             , message = Nothing
             , panel = Nothing
             , shakes = 0
+            , confirmingGiveUp = False
             }
 
         ( loaded, loadCmd ) =
@@ -314,10 +320,15 @@ currentGame model =
 
 
 {-| Make sure there's a game for the current mode and settings, starting one if
-not.
+not, and show its latest guess.
 -}
 ensureGame : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
 ensureGame ( model, cmd ) =
+    startGameIfNeeded ( model, Cmd.batch [ cmd, scrollToLatestGuess ] )
+
+
+startGameIfNeeded : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+startGameIfNeeded ( model, cmd ) =
     case ( currentDictionary model, gameKey model ) of
         ( Just dict, Just key ) ->
             let
@@ -335,7 +346,7 @@ ensureGame ( model, cmd ) =
                     else
                         case Array.get (Game.dailyIndex key count) answers of
                             Just answer ->
-                                ( { model | daily = Dict.insert key { answer = answer, guesses = [] } model.daily }, cmd )
+                                ( { model | daily = Dict.insert key (Game.start answer) model.daily }, cmd )
 
                             Nothing ->
                                 ( model, cmd )
@@ -406,13 +417,14 @@ savedDecoder =
             D.oneOf [ D.field name dec, D.succeed default ]
 
         settingsDecoder =
-            D.map6 Settings
+            D.map7 Settings
                 (field "accent" D.string defaultSettings.accent)
                 (field "length" D.int defaultSettings.length)
                 (field "showSpellings" D.bool defaultSettings.showSpellings)
                 (field "showCompletions" D.bool defaultSettings.showCompletions)
                 (field "showExamples" D.bool defaultSettings.showExamples)
                 (field "theme" themeDecoder defaultSettings.theme)
+                (field "unlimitedGuesses" D.bool defaultSettings.unlimitedGuesses)
 
         themeDecoder =
             D.string
@@ -469,6 +481,7 @@ encodeSaved model =
                 , ( "showCompletions", JE.bool model.settings.showCompletions )
                 , ( "showExamples", JE.bool model.settings.showExamples )
                 , ( "theme", JE.string (themeToString model.settings.theme) )
+                , ( "unlimitedGuesses", JE.bool model.settings.unlimitedGuesses )
                 ]
           )
         , ( "mode"
@@ -518,6 +531,8 @@ type Msg
     | PressedPhoneme String
     | PressedBackspace
     | PressedEnter
+    | ConfirmingGiveUp Bool
+    | GaveUp
     | TypedText String
     | Chose String String
     | SetMode Mode
@@ -566,7 +581,7 @@ update msg model =
                 Just dict ->
                     case Array.get index (Dictionary.answers dict model.settings.length) of
                         Just answer ->
-                            ( { model | free = Dict.insert key { answer = answer, guesses = [] } model.free }, Cmd.none )
+                            ( { model | free = Dict.insert key (Game.start answer) model.free }, Cmd.none )
 
                         Nothing ->
                             ( model, Cmd.none )
@@ -590,6 +605,12 @@ update msg model =
 
         PressedEnter ->
             submit model
+
+        ConfirmingGiveUp confirming ->
+            ( { model | confirmingGiveUp = confirming }, Cmd.none )
+
+        GaveUp ->
+            ( updateGame Game.giveUp model, Cmd.none )
 
         TypedText text ->
             ( { model
@@ -691,7 +712,7 @@ update msg model =
 
 clearRow : Model -> Model
 clearRow model =
-    { model | row = [], text = "", message = Nothing }
+    { model | row = [], text = "", message = Nothing, confirmingGiveUp = False }
 
 
 playing : Model -> Bool
@@ -702,7 +723,7 @@ playing model =
 submit : Model -> ( Model, Cmd Msg )
 submit model =
     case ( currentGame model, currentDictionary model, gameKey model ) of
-        ( Just game, Just dict, Just key ) ->
+        ( Just game, Just dict, Just _ ) ->
             let
                 guess =
                     String.join " " model.row
@@ -729,25 +750,38 @@ submit model =
                 ( { model | message = Just "That's not a word I know", shakes = model.shakes + 1 }, Cmd.none )
 
             else
-                let
-                    updated =
-                        { game | guesses = game.guesses ++ [ guess ] }
-
-                    store games =
-                        Dict.insert key updated games
-
-                    withGame =
-                        case model.mode of
-                            Daily ->
-                                { model | daily = store model.daily }
-
-                            Free ->
-                                { model | free = store model.free }
-                in
-                ( clearRow withGame, Cmd.none )
+                ( clearRow (updateGame (Game.addGuess { unlimited = model.settings.unlimitedGuesses } guess) model)
+                , scrollToLatestGuess
+                )
 
         _ ->
             ( model, Cmd.none )
+
+
+updateGame : (Game -> Game) -> Model -> Model
+updateGame f model =
+    case gameKey model of
+        Just key ->
+            case model.mode of
+                Daily ->
+                    { model | daily = Dict.update key (Maybe.map f) model.daily }
+
+                Free ->
+                    { model | free = Dict.update key (Maybe.map f) model.free }
+
+        Nothing ->
+            model
+
+
+{-| Unlimited guesses can make the board scroll, and the row you're working on
+is the one you want to see. This waits for the next render, like all of
+Browser.Dom, so it scrolls to the bottom of the updated board.
+-}
+scrollToLatestGuess : Cmd Msg
+scrollToLatestGuess =
+    Browser.Dom.getViewportOf "board"
+        |> Task.andThen (\board -> Browser.Dom.setViewportOf "board" 0 board.scene.height)
+        |> Task.attempt (\_ -> NoOp)
 
 
 spellingMessage : Dictionary -> Model -> String
@@ -774,6 +808,13 @@ shareText model game =
 
                 _ ->
                     "X"
+
+        outOf =
+            if List.length game.guesses > Game.maxGuesses then
+                "∞"
+
+            else
+                String.fromInt Game.maxGuesses
 
         title =
             case model.mode of
@@ -804,7 +845,7 @@ shareText model game =
                     )
     in
     String.join "\n"
-        ((title ++ " " ++ model.settings.accent ++ " " ++ result ++ "/" ++ String.fromInt Game.maxGuesses) :: grid)
+        ((title ++ " " ++ model.settings.accent ++ " " ++ result ++ "/" ++ outOf) :: grid)
 
 
 httpError : Http.Error -> String
@@ -831,9 +872,17 @@ httpError e =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ shared Shared
+        , if model.confirmingGiveUp then
+            Sub.batch
+                [ Browser.Events.onMouseDown cancelGiveUpUnlessInside
+                , Browser.Events.onKeyDown cancelGiveUpUnlessInside
+                ]
+
+          else
+            Sub.none
         , Browser.Events.onVisibilityChange VisibilityChanged
         , Browser.Events.onKeyDown
             (D.map3
@@ -857,6 +906,27 @@ subscriptions _ =
                 |> D.andThen identity
             )
         ]
+
+
+{-| Any click or keypress outside the give-up confirmation cancels it. The
+area is marked with `data-give-up`, and its buttons are its direct children.
+-}
+cancelGiveUpUnlessInside : D.Decoder Msg
+cancelGiveUpUnlessInside =
+    D.oneOf
+        [ D.at [ "target", "dataset", "giveUp" ] D.string
+        , D.at [ "target", "parentElement", "dataset", "giveUp" ] D.string
+        ]
+        |> D.maybe
+        |> D.andThen
+            (\inside ->
+                case inside of
+                    Just _ ->
+                        D.fail "inside the confirmation"
+
+                    Nothing ->
+                        D.succeed (ConfirmingGiveUp False)
+            )
 
 
 
@@ -940,7 +1010,7 @@ viewGame model dict game =
             List.repeat (Game.maxGuesses - List.length guessRows - List.length currentRow) (viewEmptyRow model)
     in
     Html.main_ []
-        [ Html.div [ A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
+        [ Html.div [ A.id "board", A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
             (guessRows ++ currentRow ++ emptyRows)
         , Html.p [ A.class "message", A.attribute "aria-live" "polite" ]
             [ Html.text (Maybe.withDefault "" model.message) ]
@@ -948,6 +1018,17 @@ viewGame model dict game =
             Html.div [ A.class "input" ]
                 [ viewHelpers model dict
                 , viewKeyboard model dict game
+                , Html.div [ A.class "give-up", A.attribute "data-give-up" "" ]
+                    (if model.confirmingGiveUp then
+                        [ Html.text "Give up and see the answer? "
+                        , Html.button [ E.onClick GaveUp, keepFocus ] [ Html.text "Yes" ]
+                        , Html.text " "
+                        , Html.button [ E.onClick (ConfirmingGiveUp False), keepFocus ] [ Html.text "No" ]
+                        ]
+
+                     else
+                        [ Html.button [ E.onClick (ConfirmingGiveUp True), keepFocus ] [ Html.text "Give up" ] ]
+                    )
                 ]
 
           else
@@ -1217,7 +1298,7 @@ viewEnd model dict game state =
                     "Got it in " ++ String.fromInt (List.length game.guesses) ++ "!"
 
                  else
-                    "Out of guesses. The answer was"
+                    "The answer was"
                 )
             ]
         , Html.p [ A.class "answer" ]
@@ -1313,6 +1394,7 @@ viewSettings model =
         , checkbox "Show spellings of guesses" s.showSpellings (\b -> SetSettings { s | showSpellings = b })
         , checkbox "Suggest words as I type" s.showCompletions (\b -> SetSettings { s | showCompletions = b })
         , checkbox "Show example words on keys" s.showExamples (\b -> SetSettings { s | showExamples = b })
+        , checkbox "Unlimited guesses" s.unlimitedGuesses (\b -> SetSettings { s | unlimitedGuesses = b })
         , Html.div [ A.class "setting" ]
             (Html.text "Theme "
                 :: List.map
