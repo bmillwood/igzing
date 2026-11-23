@@ -1307,4 +1307,9 @@ viewHelp model =
             , Html.a [ A.href "https://joshuamandel.com/heardle/" ] [ Html.text "Heardle" ]
             , Html.text " by Carrie Niziolek and Josh Mandel."
             ]
+        , Html.p [ A.class "small" ]
+            [ Html.text "Source code, bug reports and suggestions: "
+            , Html.a [ A.href "https://github.com/bmillwood/igzing" ] [ Html.text "on GitHub" ]
+            , Html.text "."
+            ]
         ]
