@@ -136,21 +136,19 @@ main {
 /* Board */
 
 /* The board takes whatever space the keyboard leaves, and sizes its tiles to
-   fit, using container query units, but not below a readable size: on a short
-   phone screen, it scrolls instead. */
+   fit six rows, using container query units, but not below a readable size: on
+   a short phone screen, it scrolls instead. */
 .board {
   flex: 1;
   min-height: 9rem;
   container-type: size;
   display: flex;
   flex-direction: column;
-  align-items: center;
   /* Safe, so that a board with more than six rows, from unlimited guesses,
      overflows at the bottom, where it can be scrolled to, and not at the top
      as well, where it can't. */
   justify-content: safe center;
   overflow-y: auto;
-  --tile: max(2rem, min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem)));
 }
 
 /* The space between rows is inside them, for scrollToLatestGuess in Main.elm. */
@@ -159,6 +157,33 @@ main {
   flex-direction: column;
   align-items: center;
   padding: 0.075rem 0;
+  --tile: max(2rem, min(3.4rem, calc(100cqw / var(--length) - 0.3rem), calc((100cqh - 6 * 1.25rem) / 6 - 0.3rem)));
+}
+
+/* Height is usually what's scarce, so where there's room for a column either
+   side of the tiles, put each row's spellings beside it rather than below. */
+@container (min-width: 20rem) {
+  .guess {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    column-gap: 0.5rem;
+    --tile: max(2rem, min(3.4rem, calc((100cqw - 2 * 5rem) / var(--length) - 0.3rem), calc(100cqh / 6 - 0.15rem)));
+  }
+
+  .guess > .row {
+    grid-column: 2;
+  }
+
+  /* A tile is tall enough for two lines, which the column often needs. */
+  .guess > .spellings {
+    grid-column: 3;
+    height: auto;
+    line-height: 1.2;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
 }
 
 .row {
@@ -213,9 +238,10 @@ main {
 
 .spellings {
   height: 1.1rem;
+  max-width: 100%;
+  min-width: 0;
   font-size: 0.75rem;
   color: var(--muted);
-  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
