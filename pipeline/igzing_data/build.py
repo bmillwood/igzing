@@ -15,12 +15,13 @@ import dataclasses
 import json
 import pathlib
 import re
+import shutil
 import sys
 
 import wordfreq
 
 from igzing_data import accents, ipa, sourcefile
-from igzing_data.sources import britfone, espeak
+from igzing_data.sources import britfone, cmudict, espeak
 
 Pronunciation = tuple[str, ...]
 
@@ -56,6 +57,9 @@ class Layer:
 class AccentBuild:
     accent: accents.Accent
     layers: tuple[Layer, ...]
+    # The FLEECE phoneme, which a final happY vowel becomes: see
+    # _happy_tensing.
+    fleece: str
 
 
 def _rp_symbols(extra: ipa.Symbols) -> dict[str, tuple[str, ...]]:
@@ -86,6 +90,7 @@ def _rp_symbols(extra: ipa.Symbols) -> dict[str, tuple[str, ...]]:
 
 EN_GB = AccentBuild(
     accent=accents.EN_GB,
+    fleece="iː",
     layers=(
         Layer(
             name="britfone",
@@ -130,10 +135,145 @@ EN_GB = AccentBuild(
     ),
 )
 
-BUILDS = (EN_GB,)
+
+def _ga_symbols(extra: ipa.Symbols) -> dict[str, tuple[str, ...]]:
+    table = {p.id: (p.id,) for p in accents.EN_US.phonemes}
+    table |= {
+        "ɡ": ("g",),
+        "ɹ": ("r",),
+        "ʍ": ("w",),
+        "ɫ": ("l",),
+        # Length marks aren't contrastive in GA, but some write them.
+        "iː": ("i",),
+        "uː": ("u",),
+        "ɑː": ("ɑ",),
+        "ɔː": ("ɔ",),
+        "ɝː": ("ɝ",),
+        "ɜɹ": ("ɝ",),
+        "ɜ˞": ("ɝ",),
+        "ə˞": ("ɚ",),
+        # The weak vowel of "roses", which merges with KIT or schwa depending
+        # on the speaker. CMUdict mostly has KIT.
+        "ᵻ": ("ɪ",),
+        # Syllabic consonants as schwa + consonant, as CMUdict has them, and
+        # as en-GB does.
+        "l̩": ("ə", "l"),
+        "ɫ̩": ("ə", "l"),
+        "n̩": ("ə", "n"),
+        "m̩": ("ə", "m"),
+    }
+    table |= extra
+    return table
 
 
-def _happy_tensing(spelling: str, pronunciation: Pronunciation) -> Pronunciation:
+def _arpabet_symbols() -> dict[str, tuple[str, ...]]:
+    vowels = {
+        "AA": "ɑ",
+        "AE": "æ",
+        "AO": "ɔ",
+        "AW": "aʊ",
+        "AY": "aɪ",
+        "EH": "ɛ",
+        "EY": "eɪ",
+        "IH": "ɪ",
+        "IY": "i",
+        "OW": "oʊ",
+        "OY": "ɔɪ",
+        "UH": "ʊ",
+        "UW": "u",
+    }
+    consonants = {
+        "B": "b",
+        "CH": "tʃ",
+        "D": "d",
+        "DH": "ð",
+        "F": "f",
+        "G": "g",
+        "HH": "h",
+        "JH": "dʒ",
+        "K": "k",
+        "L": "l",
+        "M": "m",
+        "N": "n",
+        "NG": "ŋ",
+        "P": "p",
+        "R": "r",
+        "S": "s",
+        "SH": "ʃ",
+        "T": "t",
+        "TH": "θ",
+        "V": "v",
+        "W": "w",
+        "Y": "j",
+        "Z": "z",
+        "ZH": "ʒ",
+    }
+    table = {
+        f"{arpabet}{stress}": (phoneme,)
+        for arpabet, phoneme in vowels.items()
+        for stress in "012"
+    }
+    # Stress is what tells STRUT from schwa and NURSE from lettER.
+    for stress in "012":
+        table[f"AH{stress}"] = ("ə" if stress == "0" else "ʌ",)
+        table[f"ER{stress}"] = ("ɚ" if stress == "0" else "ɝ",)
+    return table | {arpabet: (phoneme,) for arpabet, phoneme in consonants.items()}
+
+
+EN_US = AccentBuild(
+    accent=accents.EN_US,
+    fleece="i",
+    layers=(
+        Layer(
+            name="cmudict",
+            curated=True,
+            symbols=_arpabet_symbols(),
+            separator=" ",
+        ),
+        Layer(
+            name="wiktionary-en-US",
+            curated=True,
+            symbols=_ga_symbols(
+                {
+                    # Some write NORTH/FORCE and SQUARE with the vowel
+                    # they'd have before r, which CMUdict doesn't distinguish.
+                    "oɹ": ("ɔ", "r"),
+                    "eɹ": ("ɛ", "r"),
+                }
+            ),
+        ),
+        Layer(
+            name="espeak-en-us",
+            curated=False,
+            symbols=_ga_symbols(
+                {
+                    # espeak's NURSE, which it only writes without an r.
+                    "ɜː": ("ɝ",),
+                    # As for en-GB: unstressed schwa, and glides before vowels.
+                    "ɐ": ("ə",),
+                    "ɪʲ": ("ɪ",),
+                    "iːʲ": ("i",),
+                    "iʲ": ("i",),
+                    "aɪʲ": ("aɪ",),
+                    # espeak flaps, or glottalises, only /t/: it has "ladder"
+                    # with a d.
+                    "ɾ": ("t",),
+                    "ʔ": ("t",),
+                }
+            ),
+            separator="[_ ]",
+            one_primary_stress=True,
+            generate=lambda words: espeak.pronounce(sorted(words), voice="en-us"),
+        ),
+    ),
+)
+
+BUILDS = (EN_GB, EN_US)
+
+
+def _happy_tensing(
+    spelling: str, pronunciation: Pronunciation, *, fleece: str
+) -> Pronunciation:
     """Treat a final unstressed i-ish vowel in -y words as FLEECE.
 
     Sources disagree on happY: older RP transcriptions use KIT (/ˈhæpɪ/), newer
@@ -141,7 +281,7 @@ def _happy_tensing(spelling: str, pronunciation: Pronunciation) -> Pronunciation
     Picking one makes "happy" the same five phonemes from every source.
     """
     if pronunciation[-1:] == ("ɪ",) and re.search(r"(y|ey|ie|i)$", spelling):
-        return pronunciation[:-1] + ("iː",)
+        return pronunciation[:-1] + (fleece,)
     return pronunciation
 
 
@@ -161,7 +301,7 @@ class LayerResult:
 
 
 def _read_layer(
-    layer: Layer, rows: list[tuple[str, str]], accent: accents.Accent
+    layer: Layer, rows: list[tuple[str, str]], spec: AccentBuild
 ) -> LayerResult:
     result = LayerResult(collections.defaultdict(set), collections.Counter(), {})
 
@@ -191,9 +331,9 @@ def _read_layer(
             if not pronunciation:
                 reject("empty", f"{word} {transcription}")
                 continue
-            pronunciation = _happy_tensing(word, pronunciation)
+            pronunciation = _happy_tensing(word, pronunciation, fleece=spec.fleece)
             if layer.non_rhotic and not _is_non_rhotic(
-                pronunciation, vowels=accent.vowels()
+                pronunciation, vowels=spec.accent.vowels()
             ):
                 reject("rhotic", f"{word} {transcription}")
                 continue
@@ -275,7 +415,7 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
             rows = layer.generate(missing)
         else:
             rows = sourcefile.read(layer.name)
-        result = _read_layer(layer, rows, accent)
+        result = _read_layer(layer, rows, spec)
         results[layer.name] = result
         added = 0
         for word, prons in result.pronunciations.items():
@@ -351,6 +491,7 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
 def build(*, out: str) -> None:
     for spec in BUILDS:
         _build_accent(spec, out=pathlib.Path(out))
+    shutil.copy(cmudict.LICENCE, pathlib.Path(out) / cmudict.LICENCE.name)
     accent_list = [{"tag": s.accent.tag, "name": s.accent.name} for s in BUILDS]
     (pathlib.Path(out) / "accents.json").write_text(
         json.dumps(accent_list, ensure_ascii=False), encoding="utf-8"

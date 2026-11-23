@@ -13,7 +13,7 @@ out=$3
 mkdir -p "$out/data"
 cp "$static"/* "$out/"
 cp "$elm_js" "$out/elm.js"
-cp "$data"/*.json "$out/data/"
+cp "$data"/*.json "$data"/*.txt "$out/data/"
 chmod -R u+w "$out"
 
 cd "$out"

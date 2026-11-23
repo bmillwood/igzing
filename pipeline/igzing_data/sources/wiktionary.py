@@ -42,6 +42,9 @@ class AccentTags:
     notes: frozenset[str]
     # Any transcription with one of these tags is excluded.
     excluded: frozenset[str] = frozenset()
+    # Whether to produce the untagged layer, for accents whose other sources
+    # cover enough that it's not worth the noise.
+    untagged: bool = True
 
 
 EN_GB = AccentTags(
@@ -75,7 +78,22 @@ EN_GB = AccentTags(
     ),
 )
 
-ACCENTS = (EN_GB,)
+EN_US = AccentTags(
+    name="wiktionary-en-US",
+    sufficient=frozenset({"General-American"}),
+    tags=frozenset({"US"}),
+    compatible=frozenset(
+        {"UK", "Received-Pronunciation", "Canada", "Australia", "New-Zealand"}
+    ),
+    notes=frozenset({"rhotic"}),
+    excluded=EN_GB.excluded,
+    # CMUdict covers far more than the tagged layer, so untagged
+    # transcriptions, which are as likely to be British as anything, wouldn't
+    # add much but errors.
+    untagged=False,
+)
+
+ACCENTS = (EN_GB, EN_US)
 
 # Parts of speech that don't make a word a headword in its own right.
 NON_HEADWORD_POS = frozenset(
@@ -201,7 +219,8 @@ def fetch(*, refresh: bool) -> None:
                     layers[layer] += [(spelling, t) for t in by_layer[layer]]
                     break
         sourcefile.write(accent.name, layers["tagged"])
-        sourcefile.write(f"{accent.name}-untagged", layers["untagged"])
+        if accent.untagged:
+            sourcefile.write(f"{accent.name}-untagged", layers["untagged"])
     # Only words with some pronunciation could be answers, which keeps this
     # list to a manageable size.
     sourcefile.write(

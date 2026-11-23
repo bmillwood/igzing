@@ -1364,7 +1364,13 @@ viewHelp model =
             ]
         , Html.h3 [] [ Html.text "Sources" ]
         , Html.ul [ A.class "small" ]
-            [ Html.li [] [ Html.a [ A.href "https://github.com/JoseLlarena/Britfone" ] [ Html.text "Britfone" ], Html.text " (MIT licence)" ]
+            [ Html.li [] [ Html.a [ A.href "https://github.com/JoseLlarena/Britfone" ] [ Html.text "Britfone" ], Html.text " for British English (MIT licence)" ]
+            , Html.li []
+                [ Html.a [ A.href "https://github.com/cmusphinx/cmudict" ] [ Html.text "CMUdict" ]
+                , Html.text " for American English ("
+                , Html.a [ A.href "data/cmudict-LICENSE.txt" ] [ Html.text "BSD-style licence" ]
+                , Html.text ")"
+                ]
             , Html.li [] [ Html.a [ A.href "https://en.wiktionary.org/" ] [ Html.text "Wiktionary" ], Html.text " via ", Html.a [ A.href "https://kaikki.org/" ] [ Html.text "kaikki.org" ], Html.text " (CC BY-SA 4.0)" ]
             , Html.li [] [ Html.a [ A.href "https://github.com/espeak-ng/espeak-ng" ] [ Html.text "eSpeak NG" ], Html.text " for words the others don't have" ]
             , Html.li [] [ Html.a [ A.href "https://github.com/rspeer/wordfreq" ] [ Html.text "wordfreq" ], Html.text " for word frequencies (CC BY-SA 4.0)" ]
