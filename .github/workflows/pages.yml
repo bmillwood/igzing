@@ -155,14 +155,15 @@ jobs:
     steps:
       - run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- preview -->"))) | .id' \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith(env.MARKER))) | .id' \
           | while read -r id; do
               gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$id"
             done
           url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)pr/$NUMBER/
-          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "<!-- preview -->
+          gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$MARKER
           Preview of $SHA is live: $url ([screenshots](${url}screenshots/))"
         env:
           GH_TOKEN: ${{ github.token }}
+          MARKER: "<!-- posted (and may be deleted) by ${{ github.workflow }} -->"
           NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           SHA: ${{ needs.assemble.outputs.sha }}
