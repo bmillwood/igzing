@@ -62,17 +62,20 @@ def test_settings_checkboxes_toggle_and_persist(page):
     a checkbox resets it mid-click and the click does nothing."""
     boxes = open_settings(page)
     assert boxes.count() > 0
+    initially = [boxes.nth(i).is_checked() for i in range(boxes.count())]
     for i in range(boxes.count()):
-        sync_api.expect(boxes.nth(i)).to_be_checked()
         boxes.nth(i).click()
-        sync_api.expect(boxes.nth(i)).not_to_be_checked()
-    sync_api.expect(page.locator(".keyboard")).not_to_have_class("with-examples")
+        sync_api.expect(boxes.nth(i)).to_be_checked(checked=not initially[i])
+    examples_shown = page.get_by_label("Show example words on keys").is_checked()
+    sync_api.expect(page.locator(".keyboard.with-examples")).to_have_count(
+        1 if examples_shown else 0
+    )
 
     page.reload()
     page.wait_for_selector(".keyboard")
     boxes = open_settings(page)
     for i in range(boxes.count()):
-        sync_api.expect(boxes.nth(i)).not_to_be_checked()
+        sync_api.expect(boxes.nth(i)).to_be_checked(checked=not initially[i])
 
 
 def test_panel_closes_on_backdrop_click_only(page):
