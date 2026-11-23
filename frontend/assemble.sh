@@ -17,8 +17,10 @@ cp "$data"/*.json "$out/data/"
 chmod -R u+w "$out"
 
 cd "$out"
-files=$(find . -type f ! -name sw.js | sed 's|^\./||' | LC_ALL=C sort)
-# shellcheck disable=SC2086 # file names are ours, without spaces
-version=$(cat $files | sha256sum | cut -c1-16)
-files_json=$(printf '%s\n' $files | jq -R . | jq -sc .)
+list() { find . -type f ! -name sw.js "$@" | sed 's|^\./||' | LC_ALL=C sort; }
+# shellcheck disable=SC2046 # file names are ours, without spaces
+version=$(cat $(list) | sha256sum | cut -c1-16)
+# Each accent's dictionary is a few megabytes, so the service worker only
+# keeps the ones that get used, rather than installing them all up front.
+files_json=$(list ! \( -path './data/*' ! -name accents.json \) | jq -R . | jq -sc .)
 sed -i -e "s|\"@VERSION@\"|\"igzing-$version\"|" -e "s|\"@FILES@\"|$files_json|" sw.js

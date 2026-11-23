@@ -56,6 +56,13 @@ if ("serviceWorker" in navigator) {
   // over for the first time, and is already up to date.
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+  } else {
+    // It took over after this page had already loaded its dictionary, which
+    // it only keeps when it sees it fetched, so fetch everything again
+    // through it. What it already has costs nothing.
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      for (const entry of performance.getEntriesByType("resource")) fetch(entry.name);
+    });
   }
   // Ask the browser not to evict the offline copy under storage pressure.
   navigator.storage?.persist?.();

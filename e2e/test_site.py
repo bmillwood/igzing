@@ -95,3 +95,32 @@ def test_enter_after_clicking_a_key_submits(page):
     sync_api.expect(
         page.locator(".board .tile.correct, .board .tile.present, .board .tile.absent")
     ).to_have_count(5)
+
+
+def test_playable_offline_after_one_visit(browser, site_url):
+    """The service worker only keeps dictionaries it sees fetched, and on a
+    first visit the page can fetch its dictionary before the worker takes
+    over, so main.js fetches it again then. Holding back sw.js until the
+    dictionary's loaded makes sure that's the order things happen in."""
+    context = browser.new_context()
+    held = []
+    context.route("**/sw.js", lambda route: held.append(route))
+    page = context.new_page()
+    page.goto(site_url)
+    page.wait_for_selector(".keyboard")
+    held[0].continue_()
+    # wait_for_function would take the promise from an async function as
+    # true straight away.
+    for attempt in range(100):
+        if page.evaluate(
+            "async () => Boolean(await caches.match(new URL('data/en-GB.json', location.href)))"
+        ):
+            break
+        page.wait_for_timeout(100)
+    else:
+        pytest.fail("the dictionary never got cached")
+
+    context.set_offline(True)
+    page.reload()
+    page.wait_for_selector(".keyboard")
+    context.close()
