@@ -108,6 +108,11 @@ python -m http.server -d ../_build/site
 elm-test
 ```
 
+The tests in `e2e/` drive a built site in headless Chromium, for bugs that
+only show up in a real browser. Run them from the repository root with
+`pytest e2e`, which tests `result/` from `nix-build -A site` by default, or
+another build with `IGZING_SITE=../_build/site pytest e2e` and the like.
+
 After changing Elm dependencies, regenerate the Nix lock files:
 `elm2nix convert > elm-srcs.nix && elm2nix snapshot`.
 

@@ -1,7 +1,11 @@
 { pkgs ? import <nixpkgs> { } }:
 pkgs.mkShell {
   packages = [
-    (pkgs.python3.withPackages (ps: [ ps.wordfreq ]))
+    (pkgs.python3.withPackages (ps: [
+      ps.wordfreq
+      ps.pytest
+      ps.playwright
+    ]))
     pkgs.espeak-ng
     pkgs.elmPackages.elm
     pkgs.elmPackages.elm-format
@@ -9,4 +13,5 @@ pkgs.mkShell {
     pkgs.elm2nix
     pkgs.ruff
   ];
+  PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
 }
