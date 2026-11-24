@@ -1050,10 +1050,12 @@ viewGame model dict game =
             List.repeat (Game.maxGuesses - List.length guessRows - List.length currentRow) (viewEmptyRow model)
     in
     Html.main_ []
-        [ Html.div [ A.id "board", A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
-            (guessRows ++ currentRow ++ emptyRows)
-        , Html.p [ A.class "message", A.attribute "aria-live" "polite" ]
-            [ Html.text (Maybe.withDefault "" model.message) ]
+        [ Html.div [ A.class "board-area" ]
+            [ Html.div [ A.id "board", A.class "board", A.attribute "style" ("--length: " ++ String.fromInt model.settings.length) ]
+                (guessRows ++ currentRow ++ emptyRows)
+            , Html.p [ A.class "message", A.attribute "aria-live" "polite" ]
+                [ Html.text (Maybe.withDefault "" model.message) ]
+            ]
         , if state == Game.Playing then
             Html.div [ A.class "input" ]
                 [ viewHelpers model dict

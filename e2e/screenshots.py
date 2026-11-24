@@ -51,6 +51,11 @@ BOTTLE = "b ɒ t ə l"
 ANSWER = "g l eɪ z d"  # glazed
 
 
+async def guess_a_non_word(page: async_api.Page) -> None:
+    await page.fill("#spelling", "igzing")
+    await page.press("#spelling", "Enter")
+
+
 @dataclasses.dataclass
 class State:
     name: str
@@ -76,6 +81,7 @@ STATES = [
         guesses=[WISELY, MARSHAL, BERKELEY, KITTEN, TABLE, STROLL, STREAM, BOTTLE],
         unlimited=True,
     ),
+    State("message", guesses=[WISELY, MARSHAL, BERKELEY], then=guess_a_non_word),
     State(
         "six-sounds",
         length=6,
