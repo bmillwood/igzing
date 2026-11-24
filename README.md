@@ -125,4 +125,6 @@ After changing Elm dependencies, regenerate the Nix lock files:
 ## Licences
 
 The game's word data derives from Wiktionary (CC BY-SA 4.0) and wordfreq's
-lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0.
+lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0. They also
+derive from Britfone, whose MIT licence, `data/sources/britfone-LICENSE.txt`,
+asks that its notice go with it, so the built site includes that file too.

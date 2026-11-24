@@ -15,6 +15,7 @@ import dataclasses
 import json
 import pathlib
 import re
+import shutil
 import sys
 
 import wordfreq
@@ -351,6 +352,7 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
 def build(*, out: str) -> None:
     for spec in BUILDS:
         _build_accent(spec, out=pathlib.Path(out))
+    shutil.copy(britfone.LICENCE, pathlib.Path(out) / britfone.LICENCE.name)
     accent_list = [{"tag": s.accent.tag, "name": s.accent.name} for s in BUILDS]
     (pathlib.Path(out) / "accents.json").write_text(
         json.dumps(accent_list, ensure_ascii=False), encoding="utf-8"
