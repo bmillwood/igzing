@@ -7,7 +7,14 @@ import re
 
 from igzing_data import download, sourcefile
 
-URL = "https://raw.githubusercontent.com/JoseLlarena/Britfone/1062be14adc96c358f2087ac5449d72130c7a6f4/britfone.main.3.0.1.csv"
+COMMIT = "1062be14adc96c358f2087ac5449d72130c7a6f4"
+URL = f"https://raw.githubusercontent.com/JoseLlarena/Britfone/{COMMIT}/britfone.main.3.0.1.csv"
+# Which says that redistributing it, as we do in data/sources and in the
+# game's data, means keeping its copyright notice with it.
+LICENCE_URL = (
+    f"https://raw.githubusercontent.com/JoseLlarena/Britfone/{COMMIT}/LICENSE.txt"
+)
+LICENCE = sourcefile.DIR / "britfone-LICENSE.txt"
 
 ENTRY = re.compile(r"([A-Z]+)(?:\(\d+\))?, (.*)")
 
@@ -25,3 +32,4 @@ def fetch(*, refresh: bool) -> None:
             word, ipa = match.groups()
             entries.append((word.lower(), ipa))
     sourcefile.write("britfone", entries)
+    LICENCE.write_bytes(download.cached(LICENCE_URL, refresh=refresh).read_bytes())

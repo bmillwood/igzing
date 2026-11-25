@@ -95,3 +95,45 @@ def test_enter_after_clicking_a_key_submits(page):
     sync_api.expect(
         page.locator(".board .tile.correct, .board .tile.present, .board .tile.absent")
     ).to_have_count(5)
+
+
+def test_give_up_confirmation_cancels_on_anything_else(page):
+    """Clicks and keypresses anywhere cancel the confirmation via a document
+    listener, which also hears the mousedown on its own Yes button."""
+    give_up = page.get_by_role("button", name="Give up", exact=True)
+    yes = page.get_by_role("button", name="Yes", exact=True)
+
+    give_up.click()
+    page.click(".keyboard .key:has(.label:text-is('s'))")
+    sync_api.expect(yes).to_have_count(0)
+
+    give_up.click()
+    page.keyboard.press("Backspace")
+    sync_api.expect(yes).to_have_count(0)
+
+    give_up.click()
+    page.get_by_text("Give up and see the answer?").click()
+    yes.click()
+    sync_api.expect(page.get_by_text("The answer was")).to_be_visible()
+
+
+def test_current_row_in_view_on_a_short_phone(browser, site_url):
+    """Six rows don't fit above the keyboard on a short phone, so the board
+    scrolls. It should follow the row being worked on, which before the sixth
+    guess isn't at the bottom: empty rows are."""
+    context = browser.new_context(
+        service_workers="block", viewport={"width": 366, "height": 615}
+    )
+    page = context.new_page()
+    page.goto(site_url)
+    page.wait_for_selector(".keyboard")
+    for word in ["wisely", "table", "kitten"]:
+        page.fill("#spelling", word)
+        page.keyboard.press("Enter")
+    sync_api.expect(page.locator(".guess:not(.current) .row")).to_have_count(5)
+    page.wait_for_timeout(100)
+    board = page.locator("#board").bounding_box()
+    current = page.locator(".guess.current").bounding_box()
+    assert board["y"] <= current["y"]
+    assert current["y"] + current["height"] <= board["y"] + board["height"] + 1
+    context.close()

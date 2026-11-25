@@ -23,9 +23,16 @@ IGNORED = frozenset("̯͡")
 # /ˈkɔːt.ʃɪp/ has t then ʃ, not tʃ.
 BOUNDARY = re.compile("[ˈˌ.‿ ]")
 
-# Superscript and parenthesised linking/intrusive r, as in Wiktionary's
-# /ˈfɑːðə(ɹ)/: never part of the citation form in a non-rhotic accent.
-LINKING_R = re.compile(r"\(ɹ\)|\(r\)|⁽ʳ⁾|ʳ")
+# Superscript and parenthesised r, as in Wiktionary's /ˈfɑːðə(ɹ)/ or
+# /əˈdɔː(ɹ)n/, is only pronounced in rhotic accents, unless a vowel follows, as
+# in /ˌʌndə(ɹ)əˈt͡ʃiːv/: then it's a linking r, which non-rhotic accents
+# pronounce too.
+OPTIONAL_R = re.compile(r"\(ɹ\)|\(r\)|⁽ʳ⁾|ʳ")
+LINKING_R = re.compile(f"(?:{OPTIONAL_R.pattern})(?=[ˈˌ.‿ ]*[aeiouæɑɒɔəɛɜɝɚɪʊʌ])")
+
+# A syllabic consonant straight after a schwa, as in Wiktionary's kitten
+# /ˈkɪtən̩/, is just the consonant: the schwa is already the syllable's nucleus.
+SYLLABIC_AFTER_SCHWA = re.compile("ə([lɫnm])\u0329")
 
 OPTIONAL = re.compile(r"\(([^()]*)\)")
 
@@ -46,7 +53,8 @@ def variants(transcription: str) -> list[str]:
     and optional segments in parentheses, which are expanded both ways.
     """
     text = unicodedata.normalize("NFC", transcription)
-    text = LINKING_R.sub("", text)
+    text = LINKING_R.sub("ɹ", text)
+    text = OPTIONAL_R.sub("", text)
     results = []
     for alternative in re.split(r"[,~]", text):
         alternative = alternative.strip().strip("/[]").strip()
@@ -68,6 +76,7 @@ def tokenize(ipa: str, *, symbols: Symbols) -> tuple[str, ...]:
     """Greedy longest-match tokenisation of a plain IPA string."""
     text = unicodedata.normalize("NFC", ipa)
     text = "".join(c for c in text if c not in IGNORED)
+    text = SYLLABIC_AFTER_SCHWA.sub(r"ə\1", text)
     longest = max(map(len, symbols))
     phonemes: list[str] = []
     for piece in BOUNDARY.split(text):

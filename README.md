@@ -15,6 +15,7 @@ we could find, according to a trigram model of the game's own dictionary.
 - **Spellings** appear under each guess, and **suggestions** as you type,
   whether you're typing letters or sounds. Each can be turned off in settings.
 - **4, 5 or 6 sounds** per word.
+- **Unlimited guesses**, if you'd rather keep going until you get it.
 
 ## Layout
 
@@ -121,13 +122,19 @@ only show up in a real browser. Run them from the repository root with
 `pytest e2e`, which tests `result/` from `nix-build -A site` by default, or
 another build with `IGZING_SITE=../_build/site pytest e2e` and the like.
 
+`e2e/screenshots.py` screenshots a build in a range of states and window
+sizes, and optionally another build to compare with, and makes a page to look
+through them on. Every pull request's preview has one comparing it with its
+base, at `pr/N/screenshots/`.
+
 After changing Elm dependencies, regenerate the Nix lock files:
 `elm2nix convert > elm-srcs.nix && elm2nix snapshot`.
 
 ## Licences
 
 The game's word data derives from Wiktionary (CC BY-SA 4.0) and wordfreq's
-lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0. The
-American English data also derives from CMUdict, whose licence,
-`data/sources/cmudict-LICENSE.txt`, asks that its notice go with it, so the
-built site includes that file too.
+lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0. They also
+derive from Britfone (British English) and CMUdict (American English), whose
+licences, `data/sources/britfone-LICENSE.txt` and
+`data/sources/cmudict-LICENSE.txt`, ask that their notices go with them, so the
+built site includes those files too.
