@@ -117,7 +117,15 @@ another build with `IGZING_SITE=../_build/site pytest e2e` and the like.
 `e2e/screenshots.py` screenshots a build in a range of states and window
 sizes, and optionally another build to compare with, and makes a page to look
 through them on. Every pull request's preview has one comparing it with its
-base, at `pr/N/screenshots/`.
+base, at `pr/N/compare/screenshots/`.
+
+`python -m igzing_data diff --base A --this B` describes how one build's data
+differs from another's: answers, guessable words and pronunciations, most
+frequent first. The data can change without `data/sources` changing, because
+the pipeline's code and nixpkgs' espeak-ng and wordfreq matter too, so every
+pull request gets this as well, in its preview comment and in full at
+`pr/N/compare/data.txt`. To compare with the base, CI builds it with the
+base's own nixpkgs.
 
 After changing Elm dependencies, regenerate the Nix lock files:
 `elm2nix convert > elm-srcs.nix && elm2nix snapshot`.
