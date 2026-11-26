@@ -69,7 +69,6 @@ type alias Word =
 -}
 type alias Entry =
     { key : String
-    , phonemes : List String
 
     -- Best ranked first
     , words : List Word
@@ -77,17 +76,17 @@ type alias Entry =
     }
 
 
+{-| The words and entries are sorted by spelling and key respectively, as
+JavaScript compares strings, as the data file has them. They're looked up by
+binary search, because building a Dict of a hundred thousand words, or
+anything else that's more work than reading them in, takes long enough to
+notice on a phone, every time the game opens.
+-}
 type alias Dictionary =
     { accent : Accent
     , labels : Dict String String
-
-    -- Best ranked first
-    , words : List Word
-    , bySpelling : Dict String Word
-    , byPronunciation : Dict String Entry
-
-    -- Entries of each length, best ranked first
-    , byLength : Dict Int (List Entry)
+    , words : Array Word
+    , entries : Array Entry
     , answers : Dict Int (Array String)
     }
 
@@ -103,15 +102,18 @@ accentsDecoder =
 
 decoder : D.Decoder Dictionary
 decoder =
-    D.map4 build
+    D.map5 build
         (D.field "accent" accentDecoder)
         (D.field "sources" (D.array D.string))
-        (D.field "words" (D.list rawWordDecoder))
+        (D.field "words" (D.array rawWordDecoder))
+        (D.field "pronunciations" (D.array (D.map2 Tuple.pair (D.index 0 D.string) (D.index 1 (D.list D.int)))))
         (D.field "answers" (D.dict (D.array D.string)))
 
 
+{-| A word, with its pronunciations as indices into the data file's list.
+-}
 type alias RawWord =
-    { spelling : String, zipf : Float, source : Int, pronunciations : List String, headword : Bool }
+    { spelling : String, zipf : Float, source : Int, headword : Bool, pronunciations : List Int }
 
 
 rawWordDecoder : D.Decoder RawWord
@@ -120,8 +122,8 @@ rawWordDecoder =
         (D.index 0 D.string)
         (D.index 1 D.float)
         (D.index 2 D.int)
-        (D.index 3 (D.list D.string))
-        (D.index 4 (D.map ((==) 1) D.int))
+        (D.index 3 (D.map ((==) 1) D.int))
+        (D.index 4 (D.list D.int))
 
 
 accentDecoder : D.Decoder Accent
@@ -148,16 +150,19 @@ accentDecoder =
         (D.field "keyboard" (D.list (D.list D.string)))
 
 
-build : Accent -> Array String -> List RawWord -> Dict String (Array String) -> Dictionary
-build accent sources rawWords rawAnswers =
+build : Accent -> Array String -> Array RawWord -> Array ( String, List Int ) -> Dict String (Array String) -> Dictionary
+build accent sources rawWords rawEntries rawAnswers =
     let
+        keys =
+            Array.map Tuple.first rawEntries
+
         words =
-            List.map
+            Array.map
                 (\w ->
                     { spelling = w.spelling
                     , zipf = w.zipf
                     , source = Array.get w.source sources |> Maybe.withDefault "?"
-                    , pronunciations = w.pronunciations
+                    , pronunciations = List.filterMap (\i -> Array.get i keys) w.pronunciations
                     , headword = w.headword
                     , rank =
                         if w.headword then
@@ -168,49 +173,23 @@ build accent sources rawWords rawAnswers =
                     }
                 )
                 rawWords
-                |> List.sortBy (\w -> -w.rank)
-
-        -- Folding from the right and consing keeps each entry's words in
-        -- order.
-        byPronunciation =
-            List.foldr
-                (\w acc ->
-                    List.foldl
-                        (\p acc2 ->
-                            Dict.update p
-                                (\existing ->
-                                    case existing of
-                                        Just e ->
-                                            Just { e | words = w :: e.words, rank = max e.rank w.rank }
-
-                                        Nothing ->
-                                            Just { key = p, phonemes = String.split " " p, words = [ w ], rank = w.rank }
-                                )
-                                acc2
-                        )
-                        acc
-                        w.pronunciations
-                )
-                Dict.empty
-                words
-
-        byLength =
-            Dict.values byPronunciation
-                |> List.sortBy (\e -> -e.rank)
-                |> List.foldr
-                    (\e acc ->
-                        Dict.update (List.length e.phonemes)
-                            (\es -> Just (e :: Maybe.withDefault [] es))
-                            acc
-                    )
-                    Dict.empty
     in
     { accent = accent
     , labels = Dict.fromList (List.map (\p -> ( p.id, p.label )) accent.phonemes)
     , words = words
-    , bySpelling = Dict.fromList (List.map (\w -> ( w.spelling, w )) words)
-    , byPronunciation = byPronunciation
-    , byLength = byLength
+    , entries =
+        Array.map
+            (\( key, indices ) ->
+                let
+                    entryWords =
+                        List.filterMap (\i -> Array.get i words) indices
+                in
+                { key = key
+                , words = entryWords
+                , rank = List.head entryWords |> Maybe.map .rank |> Maybe.withDefault 0
+                }
+            )
+            rawEntries
     , answers =
         Dict.foldl
             (\k v acc ->
@@ -224,6 +203,70 @@ build accent sources rawWords rawAnswers =
             Dict.empty
             rawAnswers
     }
+
+
+{-| The index of the first element whose key isn't less than the target, in
+an array sorted by key.
+-}
+lowerBound : (a -> String) -> String -> Array a -> Int
+lowerBound toKey target array =
+    let
+        -- The answer is in [low, high].
+        go low high =
+            if low >= high then
+                low
+
+            else
+                let
+                    middle =
+                        (low + high) // 2
+                in
+                case Array.get middle array of
+                    Just x ->
+                        if toKey x < target then
+                            go (middle + 1) high
+
+                        else
+                            go low middle
+
+                    Nothing ->
+                        low
+    in
+    go 0 (Array.length array)
+
+
+find : (a -> String) -> String -> Array a -> Maybe a
+find toKey target array =
+    Array.get (lowerBound toKey target array) array
+        |> Maybe.andThen
+            (\x ->
+                if toKey x == target then
+                    Just x
+
+                else
+                    Nothing
+            )
+
+
+{-| The elements whose keys start with the prefix, in order, in an array
+sorted by key.
+-}
+startingWith : (a -> String) -> String -> Array a -> List a
+startingWith toKey prefix array =
+    let
+        go i acc =
+            case Array.get i array of
+                Just x ->
+                    if String.startsWith prefix (toKey x) then
+                        go (i + 1) (x :: acc)
+
+                    else
+                        List.reverse acc
+
+                Nothing ->
+                    List.reverse acc
+    in
+    go (lowerBound toKey prefix array) []
 
 
 toPhonemes : String -> List String
@@ -242,7 +285,7 @@ label dict id =
 
 entry : Dictionary -> String -> Maybe Entry
 entry dict key =
-    Dict.get key dict.byPronunciation
+    find .key key dict.entries
 
 
 spellingsOf : Dictionary -> String -> List String
@@ -254,7 +297,7 @@ spellingsOf dict key =
 -}
 pronunciationsOf : Dictionary -> Int -> String -> Maybe ( Word, List String )
 pronunciationsOf dict length spelling =
-    Dict.get (String.toLower spelling) dict.bySpelling
+    find .spelling (String.toLower spelling) dict.words
         |> Maybe.map
             (\w ->
                 ( w
@@ -273,32 +316,14 @@ length, best ranked first.
 -}
 completeSpelling : Dictionary -> Int -> Int -> String -> List ( Word, String )
 completeSpelling dict length limit prefix =
-    let
-        lower =
-            String.toLower prefix
-
-        go remaining ws acc =
-            if remaining <= 0 then
-                List.reverse acc
-
-            else
-                case ws of
-                    [] ->
-                        List.reverse acc
-
-                    w :: rest ->
-                        if String.startsWith lower w.spelling then
-                            let
-                                matching =
-                                    List.filter (\p -> List.length (toPhonemes p) == length) w.pronunciations
-                                        |> List.map (Tuple.pair w)
-                            in
-                            go (remaining - List.length matching) rest (List.reverse matching ++ acc)
-
-                        else
-                            go remaining rest acc
-    in
-    go limit dict.words [] |> List.take limit
+    startingWith .spelling (String.toLower prefix) dict.words
+        |> List.concatMap
+            (\w ->
+                List.filter (\p -> List.length (toPhonemes p) == length) w.pronunciations
+                    |> List.map (Tuple.pair w)
+            )
+        |> List.sortBy (\( w, _ ) -> -w.rank)
+        |> List.take limit
 
 
 {-| Pronunciations of the given length starting with the given phonemes, best
@@ -307,12 +332,19 @@ ranked first, along with how many there are in total.
 completePronunciation : Dictionary -> Int -> Int -> List String -> ( List Entry, Int )
 completePronunciation dict length limit prefix =
     let
-        n =
-            List.length prefix
+        key =
+            String.join " " prefix
 
+        -- Keys starting with "t" include "tʃ …", so check that the prefix
+        -- ends at a phoneme boundary.
         matches =
-            Dict.get length dict.byLength
-                |> Maybe.withDefault []
-                |> List.filter (\e -> List.take n e.phonemes == prefix)
+            startingWith .key key dict.entries
+                |> List.filter
+                    (\e ->
+                        (e.key == key || String.startsWith (key ++ " ") e.key)
+                            && List.length (toPhonemes e.key)
+                            == length
+                    )
+                |> List.sortBy (\e -> -e.rank)
     in
     ( List.take limit matches, List.length matches )

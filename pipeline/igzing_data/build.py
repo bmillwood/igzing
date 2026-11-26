@@ -307,6 +307,30 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
         print(f"{accent.tag}: {len(prons)} answers of length {n}", file=sys.stderr)
 
     layer_index = {layer.name: i for i, layer in enumerate(spec.layers)}
+
+    # The game looks words and pronunciations up by binary search, comparing
+    # strings as JavaScript does, by UTF-16 code unit, which only differs from
+    # Python's order outside the Basic Multilingual Plane, but still.
+    def js_order(string: str) -> bytes:
+        return string.encode("utf-16-be")
+
+    spellings = sorted(chosen, key=js_order)
+    keys = sorted(
+        {" ".join(p) for _, prons in chosen.values() for p in prons}, key=js_order
+    )
+    word_index = {spelling: i for i, spelling in enumerate(spellings)}
+    key_index = {key: i for i, key in enumerate(keys)}
+
+    # As the game ranks words for suggestions: dictionary words first, then
+    # by frequency.
+    def rank(spelling: str) -> tuple[bool, float, bytes]:
+        return (spelling not in headwords, -zipf[spelling], js_order(spelling))
+
+    spellings_of = collections.defaultdict(list)
+    for spelling in sorted(chosen, key=rank):
+        for p in chosen[spelling][1]:
+            spellings_of[" ".join(p)].append(spelling)
+
     data = {
         "accent": {
             "tag": accent.tag,
@@ -323,21 +347,26 @@ def _build_accent(spec: AccentBuild, *, out: pathlib.Path) -> None:
             "keyboard": [list(row) for row in accent.keyboard],
         },
         "sources": [layer.name for layer in spec.layers],
-        # [spelling, Zipf frequency, source index, pronunciations,
-        # headword], most frequent first. Pronunciations are phoneme ids
-        # separated by spaces. Headword is 1 for a dictionary word, as opposed
-        # to a name, abbreviation, etc.
+        # [spelling, Zipf frequency, source index, headword, pronunciation
+        # indices], by spelling. The frequency is to two decimal places, since
+        # it's what orders suggestions, by spelling otherwise. Headword is 1 for a dictionary word, as
+        # opposed to a name, abbreviation, etc.
         "words": [
             [
                 spelling,
-                round(zipf[spelling], 1),
-                layer_index[layer_name],
-                sorted(" ".join(p) for p in prons),
+                round(zipf[spelling], 2),
+                layer_index[chosen[spelling][0]],
                 int(spelling in headwords),
+                sorted(key_index[" ".join(p)] for p in chosen[spelling][1]),
             ]
-            for spelling, (layer_name, prons) in sorted(
-                chosen.items(), key=lambda kv: (-zipf[kv[0]], kv[0])
-            )
+            for spelling in spellings
+        ],
+        # [pronunciation, word indices], by pronunciation, with each one's
+        # words best ranked first. Pronunciations are phoneme ids separated by
+        # spaces.
+        "pronunciations": [
+            [key, [word_index[spelling] for spelling in spellings_of[key]]]
+            for key in keys
         ],
         "answers": {
             str(n): [" ".join(p) for p in prons] for n, prons in answers.items()
