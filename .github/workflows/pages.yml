@@ -40,7 +40,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      number: ${{ steps.previews.outputs.number }}
+      number: ${{ steps.find-pr.outputs.number }}
       sha: ${{ steps.previews.outputs.sha }}
       data: ${{ steps.previews.outputs.data }}
 
@@ -55,8 +55,26 @@ jobs:
       - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/${{ env.nixpkgs_version }}.tar.gz
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: bmillwood
       - run: nix-build -A site
       - run: cp --no-preserve=mode --recursive --dereference result site
+
+      - id: find-pr
+        run: |
+          echo -n number= >> "$GITHUB_OUTPUT"
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --json number --jq '.[0].number'
+              ;;
+            workflow_run)
+              echo "${{ github.event.workflow_run.pull_requests[0].number }}"
+              ;;
+            pull_request)
+              echo "${{ github.event.pull_request.number }}"
+              ;;
+          esac | tee -a "$GITHUB_OUTPUT"
 
       # Each pull request's site, and its comparison with its base from ci.yml
       # inside it. For the pull request that triggered this run, also note
@@ -64,11 +82,10 @@ jobs:
       # comment that the comment job posts. A dispatch from a pull request's
       # branch counts as triggered by that pull request.
       - id: previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGERED_BY: ${{ steps.find-pr.outputs.number }}
         run: |
-          if [[ $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
-            TRIGGERED_BY=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --json number --jq '.[0].number // empty')
-          fi
-          echo "number=$TRIGGERED_BY" >> "$GITHUB_OUTPUT"
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts" \
             --jq '[.artifacts[] | select(.expired | not) | select(.name | test("^(site|compare)-pr-"))]' \
           | jq --slurp --raw-output '
@@ -113,9 +130,6 @@ jobs:
               fi
               echo "unpacked $dir"
             done
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TRIGGERED_BY: ${{ github.event.workflow_run.pull_requests[0].number }}
 
       # A way to find the previews.
       - run: |
@@ -152,7 +166,6 @@ jobs:
 
   deploy:
     needs: assemble
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -162,6 +175,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
+        if: github.ref == 'refs/heads/main'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
 
   # Says that the preview is live once it is, on the pull request that
