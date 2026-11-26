@@ -61,7 +61,7 @@ jobs:
       - run: nix-build -A site
       # With the base's own nixpkgs, so that bumping it shows up as a change.
       - run: |
-          base_nixpkgs=$(grep --only-matching --perl-regexp 'nixpkgs_version: \K[0-9a-f]+' ../base/.github/workflows/ci.yml)
+          base_nixpkgs=$(yq -r .env.nixpkgs_version ../base/.github/workflows/ci.yml)
           nix-build ../base -A site -o result-base \
             -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/$base_nixpkgs.tar.gz"
       - run: nix-shell --run 'python e2e/screenshots.py --site result --base result-base --out compare/screenshots'
