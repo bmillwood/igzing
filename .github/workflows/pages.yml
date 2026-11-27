@@ -40,26 +40,54 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      number: ${{ steps.find-pr.outputs.number }}
       sha: ${{ steps.previews.outputs.sha }}
+      data: ${{ steps.previews.outputs.data }}
 
     steps:
-      # A workflow_run checks out the default branch. Building it here rather
-      # than keeping an artifact from main's last CI run means main's site
-      # can't expire, at the cost of a minute or so per deploy.
+      # The default branch, even when this is dispatched from another one to
+      # try out a change to this file. Building it here rather than keeping an
+      # artifact from main's last CI run means main's site can't expire, at
+      # the cost of a minute or so per deploy.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/${{ env.nixpkgs_version }}.tar.gz
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: bmillwood
       - run: nix-build -A site
       - run: cp --no-preserve=mode --recursive --dereference result site
 
-      # Each pull request's site, and its screenshots from ci.yml inside it.
-      # For the pull request that triggered this run, also note which commit's
-      # build is deployed, for the comment that the deploy job posts.
+      - id: find-pr
+        run: |
+          echo -n number= >> "$GITHUB_OUTPUT"
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --json number --jq '.[0].number'
+              ;;
+            workflow_run)
+              echo "${{ github.event.workflow_run.pull_requests[0].number }}"
+              ;;
+            pull_request)
+              echo "${{ github.event.pull_request.number }}"
+              ;;
+          esac | tee -a "$GITHUB_OUTPUT"
+
+      # Each pull request's site, and its comparison with its base from ci.yml
+      # inside it. For the pull request that triggered this run, also note
+      # which commit's build is deployed, and how its data changed, for the
+      # comment that the comment job posts. A dispatch from a pull request's
+      # branch counts as triggered by that pull request.
       - id: previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGERED_BY: ${{ steps.find-pr.outputs.number }}
         run: |
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts" \
-            --jq '[.artifacts[] | select(.expired | not) | select(.name | test("^(site|screenshots)-pr-"))]' \
+            --jq '[.artifacts[] | select(.expired | not) | select(.name | test("^(site|compare)-pr-"))]' \
           | jq --slurp --raw-output '
               add
               # A preview shares its origin with the real site, and with
@@ -86,15 +114,22 @@ jobs:
                   echo "sha=$sha" >> "$GITHUB_OUTPUT"
                 fi
               else
-                dir=site/pr/$number/screenshots
+                dir=site/pr/$number/compare
               fi
               mkdir -p "$dir"
               unzip -q preview.zip -d "$dir"
+              if [[ $kind == compare && $number == "$TRIGGERED_BY" ]]; then
+                # The report quotes the pull request's data, so its delimiter
+                # mustn't be something the data could contain.
+                delimiter=$(openssl rand -hex 16)
+                {
+                  echo "data<<$delimiter"
+                  cat "$dir/data-short.md"
+                  echo "$delimiter"
+                } >> "$GITHUB_OUTPUT"
+              fi
               echo "unpacked $dir"
             done
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TRIGGERED_BY: ${{ github.event.workflow_run.pull_requests[0].number }}
 
       # A way to find the previews.
       - run: |
@@ -131,7 +166,6 @@ jobs:
 
   deploy:
     needs: assemble
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -141,9 +175,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
+        if: github.ref == 'refs/heads/main'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
 
-  # Says that the preview is live once it is, on the pull request whose CI run
+  # Says that the preview is live once it is, on the pull request that
   # triggered this. The last such comment is deleted first, so that there's
   # only ever one, but each deploy still notifies.
   comment:
@@ -161,9 +196,12 @@ jobs:
             done
           url=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .html_url)pr/$NUMBER/
           gh pr comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$MARKER
-          Preview of $SHA is live: $url ([screenshots](${url}screenshots/))"
+          Preview of $SHA is live: $url ([screenshots](${url}compare/screenshots/), [data in full](${url}compare/data.txt))
+
+          $DATA"
         env:
           GH_TOKEN: ${{ github.token }}
           MARKER: "<!-- posted (and may be deleted) by ${{ github.workflow }} -->"
-          NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          NUMBER: ${{ needs.assemble.outputs.number }}
           SHA: ${{ needs.assemble.outputs.sha }}
+          DATA: ${{ needs.assemble.outputs.data }}
