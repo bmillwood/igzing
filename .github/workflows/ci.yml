@@ -8,6 +8,8 @@ env:
 
 jobs:
   build:
+    # this environment contains the cachix signing key and auth token
+    environment: ${{ github.ref == 'refs/heads/main' && 'default-branch' || '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -16,6 +18,12 @@ jobs:
       - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/${{ env.nixpkgs_version }}.tar.gz
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: bmillwood
+          # if not on the env with these secrets, they'll just be empty, which is fine
+          signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - run: nix-build -A site
       - run: nix-shell --run 'cd frontend && elm-test'
       - run: nix-shell --run 'pytest e2e'
@@ -29,9 +37,10 @@ jobs:
           path: result/
           retention-days: 14
 
-  # Before and after screenshots of the site, for pages.yml to put in the
-  # preview's screenshots/. A separate job so as to run alongside the tests.
-  screenshots:
+  # Compares the site with its base, in before and after screenshots and a
+  # report of how the game's data changed, for pages.yml to put in the
+  # preview's compare/. A separate job so as to run alongside the tests.
+  compare:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -45,12 +54,22 @@ jobs:
       - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32
         with:
           nix_path: nixpkgs=https://github.com/NixOS/nixpkgs/archive/${{ env.nixpkgs_version }}.tar.gz
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: bmillwood
       - run: git worktree add ../base HEAD^1
       - run: nix-build -A site
-      - run: nix-build ../base -A site -o result-base
-      - run: nix-shell --run 'python e2e/screenshots.py --site result --base result-base --out screenshots'
+      # With the base's own nixpkgs, so that bumping it shows up as a change.
+      - run: |
+          base_nixpkgs=$(yq -r .env.nixpkgs_version ../base/.github/workflows/ci.yml)
+          nix-build ../base -A site -o result-base \
+            -I "nixpkgs=https://github.com/NixOS/nixpkgs/archive/$base_nixpkgs.tar.gz"
+      - run: nix-shell --run 'python e2e/screenshots.py --site result --base result-base --out compare/screenshots'
+      # In full, and shortened for pages.yml's comment on the pull request.
+      - run: nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data diff --base result-base/data --this result/data > compare/data.txt'
+      - run: nix-shell --run 'PYTHONPATH=pipeline python -m igzing_data diff --base result-base/data --this result/data --limit 20 > compare/data-short.md'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: screenshots-pr-${{ github.event.number }}
-          path: screenshots/
+          name: compare-pr-${{ github.event.number }}
+          path: compare/
           retention-days: 14

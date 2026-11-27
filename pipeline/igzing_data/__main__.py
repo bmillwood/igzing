@@ -1,6 +1,7 @@
 import argparse
+import pathlib
 
-from igzing_data import build
+from igzing_data import build, diff
 from igzing_data.sources import britfone, cmudict, wiktionary
 
 FETCHERS = {
@@ -27,12 +28,23 @@ def main() -> None:
     )
     build_parser.add_argument("--out", required=True)
 
+    diff_parser = commands.add_parser(
+        "diff", help="describe how one build's data differs from another's"
+    )
+    diff_parser.add_argument("--base", type=pathlib.Path, required=True)
+    diff_parser.add_argument("--this", type=pathlib.Path, required=True)
+    diff_parser.add_argument(
+        "--limit", type=int, help="list at most this many items of each kind"
+    )
+
     args = parser.parse_args()
     if args.command == "fetch":
         for name in args.sources or FETCHERS:
             FETCHERS[name](refresh=args.refresh)
-    else:
+    elif args.command == "build":
         build.build(out=args.out)
+    else:
+        print(diff.report(base=args.base, this=args.this, limit=args.limit), end="")
 
 
 main()
