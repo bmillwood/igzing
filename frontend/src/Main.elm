@@ -1492,8 +1492,14 @@ viewHelp model =
         , Html.ul [ A.class "small" ]
             [ Html.li []
                 [ Html.a [ A.href "https://github.com/JoseLlarena/Britfone" ] [ Html.text "Britfone" ]
-                , Html.text " ("
+                , Html.text " for British English ("
                 , Html.a [ A.href "data/britfone-LICENSE.txt" ] [ Html.text "MIT licence" ]
+                , Html.text ")"
+                ]
+            , Html.li []
+                [ Html.a [ A.href "https://github.com/cmusphinx/cmudict" ] [ Html.text "CMUdict" ]
+                , Html.text " for American English ("
+                , Html.a [ A.href "data/cmudict-LICENSE.txt" ] [ Html.text "BSD-style licence" ]
                 , Html.text ")"
                 ]
             , Html.li [] [ Html.a [ A.href "https://en.wiktionary.org/" ] [ Html.text "Wiktionary" ], Html.text " via ", Html.a [ A.href "https://kaikki.org/" ] [ Html.text "kaikki.org" ], Html.text " (CC BY-SA 4.0)" ]

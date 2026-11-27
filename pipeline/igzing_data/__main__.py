@@ -2,9 +2,13 @@ import argparse
 import pathlib
 
 from igzing_data import build, diff
-from igzing_data.sources import britfone, wiktionary
+from igzing_data.sources import britfone, cmudict, wiktionary
 
-FETCHERS = {"britfone": britfone.fetch, "wiktionary": wiktionary.fetch}
+FETCHERS = {
+    "britfone": britfone.fetch,
+    "cmudict": cmudict.fetch,
+    "wiktionary": wiktionary.fetch,
+}
 
 
 def main() -> None:

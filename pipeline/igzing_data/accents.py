@@ -54,6 +54,35 @@ def _phonemes(
     )
 
 
+# The same in both accents so far.
+_CONSONANTS = [
+    ("p", "p", "[p]ie"),
+    ("b", "b", "[b]uy"),
+    ("t", "t", "[t]ie"),
+    ("d", "d", "[d]ie"),
+    ("k", "k", "[k]ite"),
+    ("g", "g", "[g]uy"),
+    ("tʃ", "tʃ", "[ch]in"),
+    ("dʒ", "dʒ", "[j]am"),
+    ("f", "f", "[f]ight"),
+    ("v", "v", "[v]ie"),
+    ("θ", "θ", "[th]igh"),
+    ("ð", "ð", "[th]y"),
+    ("s", "s", "[s]igh"),
+    ("z", "z", "[z]oo"),
+    ("ʃ", "ʃ", "[sh]y"),
+    ("ʒ", "ʒ", "mea[s]ure"),
+    ("h", "h", "[h]igh"),
+    ("m", "m", "[m]y"),
+    ("n", "n", "[n]igh"),
+    ("ŋ", "ŋ", "si[ng]"),
+    ("l", "l", "[l]ie"),
+    ("r", "r", "[r]ye"),
+    ("w", "w", "[w]ise"),
+    ("j", "j", "[y]es"),
+]
+
+
 EN_GB = Accent(
     tag="en-GB",
     name="British English (Standard Southern British)",
@@ -83,32 +112,7 @@ EN_GB = Accent(
             ("eə", "eə", "squ[are]"),
             ("ʊə", "ʊə", "c[ure]"),
         ],
-        consonants=[
-            ("p", "p", "[p]ie"),
-            ("b", "b", "[b]uy"),
-            ("t", "t", "[t]ie"),
-            ("d", "d", "[d]ie"),
-            ("k", "k", "[k]ite"),
-            ("g", "g", "[g]uy"),
-            ("tʃ", "tʃ", "[ch]in"),
-            ("dʒ", "dʒ", "[j]am"),
-            ("f", "f", "[f]ight"),
-            ("v", "v", "[v]ie"),
-            ("θ", "θ", "[th]igh"),
-            ("ð", "ð", "[th]y"),
-            ("s", "s", "[s]igh"),
-            ("z", "z", "[z]oo"),
-            ("ʃ", "ʃ", "[sh]y"),
-            ("ʒ", "ʒ", "mea[s]ure"),
-            ("h", "h", "[h]igh"),
-            ("m", "m", "[m]y"),
-            ("n", "n", "[n]igh"),
-            ("ŋ", "ŋ", "si[ng]"),
-            ("l", "l", "[l]ie"),
-            ("r", "r", "[r]ye"),
-            ("w", "w", "[w]ise"),
-            ("j", "j", "[y]es"),
-        ],
+        consonants=_CONSONANTS,
     ),
     keyboard=(
         ("ɪ", "e", "æ", "ʌ", "ɒ", "ʊ", "ə"),
@@ -120,4 +124,39 @@ EN_GB = Accent(
     ),
 )
 
-ACCENTS = {accent.tag: accent for accent in (EN_GB,)}
+# CMUdict's phonemes, which are also the usual phonemic analysis, with stress
+# distinguishing STRUT from schwa and NURSE from lettER, as IPA transcriptions
+# of General American do.
+EN_US = Accent(
+    tag="en-US",
+    name="American English (General American)",
+    phonemes=_phonemes(
+        vowels=[
+            ("ɪ", "ɪ", "k[i]t"),
+            ("ɛ", "ɛ", "dr[e]ss"),
+            ("æ", "æ", "tr[a]p"),
+            ("ʌ", "ʌ", "str[u]t"),
+            ("ɑ", "ɑ", "l[o]t"),
+            ("ɔ", "ɔ", "th[ough]t"),
+            ("ʊ", "ʊ", "f[oo]t"),
+            ("ə", "ə", "comm[a]"),
+            ("i", "i", "fl[ee]ce"),
+            ("u", "u", "g[oo]se"),
+            ("ɝ", "ɝ", "n[ur]se"),
+            ("ɚ", "ɚ", "lett[er]"),
+            ("eɪ", "eɪ", "f[a]ce"),
+            ("aɪ", "aɪ", "pr[i]ce"),
+            ("ɔɪ", "ɔɪ", "ch[oi]ce"),
+            ("oʊ", "oʊ", "g[oa]t"),
+            ("aʊ", "aʊ", "m[ou]th"),
+        ],
+        consonants=_CONSONANTS,
+    ),
+    keyboard=(
+        ("ɪ", "ɛ", "æ", "ʌ", "ɑ", "ɔ", "ʊ", "ə"),
+        ("i", "u", "ɝ", "ɚ", "eɪ", "aɪ", "ɔɪ", "oʊ", "aʊ"),
+        *EN_GB.keyboard[3:],
+    ),
+)
+
+ACCENTS = {accent.tag: accent for accent in (EN_GB, EN_US)}

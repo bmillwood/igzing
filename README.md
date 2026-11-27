@@ -1,6 +1,6 @@
 # Igzing
 
-Guess the word by its sounds: a phonemic Wordle, starting with British
+Guess the word by its sounds: a phonemic Wordle, in British or American
 English. It works offline once loaded, so you can play it on the Underground.
 Inspired by [Heardle](https://joshuamandel.com/heardle/), which does this for
 American English with CMUdict.
@@ -68,6 +68,15 @@ guess without overruling a careful one. For `en-GB`:
 | Wiktionary, untagged | +35k | Only for words with no tagged transcription. Rejects anything with a coda /r/. |
 | espeak-ng `en-gb-x-rp` | +27k | Letter-to-sound rules, run at build time for common words the others lack. |
 
+For `en-US`, whose phonemes are CMUdict's, with stress telling /ʌ/ from /ə/
+and /ɝ/ from /ɚ/:
+
+| Layer | Notes |
+| --- | --- |
+| [CMUdict](https://github.com/cmusphinx/cmudict) | General American, in ARPAbet. BSD-style. |
+| Wiktionary, tagged GA/US | No untagged layer: CMUdict covers far more, and untagged transcriptions are as likely to be British. |
+| espeak-ng `en-us` | As for `en-GB`. |
+
 Every source has its own **symbol table** mapping its notation onto the
 accent's 44 phonemes. An unmapped symbol rejects the transcription rather than
 being skipped, so new notation gets counted instead of silently changing
@@ -77,7 +86,7 @@ phoneme counts.
 
 Answers are stricter than valid guesses. A word qualifies if:
 
-- its pronunciation comes from a curated layer (Britfone or tagged
+- its pronunciation comes from a curated layer (Britfone, CMUdict or tagged
   Wiktionary);
 - it's common (wordfreq Zipf ≥ 3);
 - it's a Wiktionary headword in its own right, not only a plural, past tense,
@@ -94,9 +103,8 @@ Answers are stricter than valid guesses. A word qualifies if:
    contribute.
 3. Add an `AccentBuild` with its layers to `build.py`.
 
-General American, for instance, could use CMUdict, the US-tagged Wiktionary
-layers, and espeak's `en-us`. The frontend reads the accent list from the
-data, so it needs no changes.
+The frontend reads the accent list from the data, so it needs no changes,
+except perhaps to credit a new source in the help panel.
 
 ## Developing the frontend
 
@@ -134,5 +142,7 @@ After changing Elm dependencies, regenerate the Nix lock files:
 
 The game's word data derives from Wiktionary (CC BY-SA 4.0) and wordfreq's
 lists (CC BY-SA 4.0), so the built data files are CC BY-SA 4.0. They also
-derive from Britfone, whose MIT licence, `data/sources/britfone-LICENSE.txt`,
-asks that its notice go with it, so the built site includes that file too.
+derive from Britfone (British English) and CMUdict (American English), whose
+licences, `data/sources/britfone-LICENSE.txt` and
+`data/sources/cmudict-LICENSE.txt`, ask that their notices go with them, so the
+built site includes those files too.
